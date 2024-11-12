@@ -847,6 +847,7 @@ function openSkillCheckDialog() {
                 updateDicePool(html, actor);
             });
             html.find("#attributeSelect").on("change", function() {
+                console.log("Made it here!")
                 updateDicePool(html, actor);
             });
             html.find("#modifier").on("input", function() {
