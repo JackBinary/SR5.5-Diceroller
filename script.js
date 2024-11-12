@@ -177,12 +177,14 @@ function handleSoakTest(damage, actor) {
         default: "roll"
     }).render(true);
 }
-// Add button to chat message for defense test
+
+// Add button to chat message for defense test, using the V10-compatible approach
 Hooks.on("renderChatMessage", (message, html) => {
-    if (message.data.flags["shadowrun-defense-test"]?.defenseButton) {
+    const flags = message.flags["shadowrun-defense-test"];
+    if (flags?.defenseButton) {
         const button = $(`<button>Defense Test</button>`);
         button.on("click", () => {
-            const { hits, dv, actorId } = message.data.flags["shadowrun-defense-test"];
+            const { hits, dv, actorId } = flags;
             handleDefenseTest(hits, dv, actorId);
         });
         html.find(".message-content").append(button);
