@@ -458,7 +458,10 @@ async function setupCombatDialog() {
                                                           }).join(', ')}
                                                         </td>
                                                     </tr>
-                                                    <tr><td> ${hits}</td></tr>
+                                                    <tr>
+                                                        <th>Hits</th>
+                                                        <td>${hits}</td>
+                                                    </tr>
                                                     <tr>
                                                         <th>DV</th>
                                                         <td>${baseDamage}</td>
