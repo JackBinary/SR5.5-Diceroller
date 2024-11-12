@@ -69,8 +69,8 @@ function handleDefenseTest(hits, dv, actorId) {
     }
 
     // Load necessary actor data for defense test
-    const reaction = actor.system.attributes.reaction.value + (actor.system.attributes.reaction.temp || 0);
-    const intuition = actor.system.attributes.intuition.value + (actor.system.attributes.intuition.temp || 0);
+    const reaction = actor.system.attributes.reaction.value;
+    const intuition = actor.system.attributes.intuition.value;
     const defensePool = reaction + intuition;
 
     // Show dialog for defense test modifiers
@@ -160,7 +160,7 @@ function handleDefenseTest(hits, dv, actorId) {
 // Soak Test Handler Function
 function handleSoakTest(damage, actor) {
     // Load necessary actor data for soak test
-    const body = actor.system.attributes.body.value + (actor.system.attributes.body.temp || 0);
+    const body = actor.system.attributes.body.value;
 
     // Show dialog for soak test modifiers
     new Dialog({
@@ -847,7 +847,6 @@ function openSkillCheckDialog() {
                 updateDicePool(html, actor);
             });
             html.find("#attributeSelect").on("change", function() {
-                console.log("Made it here!")
                 updateDicePool(html, actor);
             });
             html.find("#modifier").on("input", function() {
@@ -918,23 +917,33 @@ function getAttributeData(attributeKey, actor) {
     return { displayName: attributeKey, baseValue: 0, tempValue: 0 };
 }
 
-// Function to get the list of attributes based on actor "special" value
-function getAttributeList(actor) {
-    const baseAttributes = ["Body", "Agility", "Reaction", "Strength", "Willpower", "Logic", "Intuition", "Charisma"];
-    const special = actor.system.special || "mundane";
+// Helper function to get attribute display name and value
+function getAttributeData(attributeKey, actor) {
+    const attributes = actor.system.attributes || {};
+    const matrix = actor.system.matrix || {};
 
-    if (special === "magic") {
-        baseAttributes.push("Magic", "Initiation");
-    } else if (special === "resonance") {
-        baseAttributes.push("Resonance", "Submersion");
+    console.log("Fetching data for attribute key:", attributeKey);
+
+    // Handle special case for device rating in matrix attributes
+    if (attributeKey === "device_rating" && matrix.rating) {
+        console.log("Using Device Rating from matrix:", matrix.rating);
+        return { displayName: "Device Rating", value: matrix.rating };
     }
 
-    const matrix = actor.system.matrix;
-    if (matrix && matrix.rating > 0) {
-        baseAttributes.push("device_rating", "Firewall", "Data Processing", "Attack", "Sleaze");
+    const attributeData = attributes[attributeKey] || matrix[attributeKey];
+
+    // Check if attribute data exists and log if it doesn’t
+    if (!attributeData) {
+        console.warn(`Attribute data not found for key: ${attributeKey}`);
+        return { displayName: attributeKey, value: 0 };
     }
 
-    return baseAttributes;
+    const displayName = attributeKey.charAt(0).toUpperCase() + attributeKey.slice(1).replace(/_/g, ' ');
+    const value = attributeData.value || 0;
+
+    console.log("Attribute found:", displayName, "Value:", value);
+
+    return { displayName, value };
 }
 
 // Function to calculate and update the dice pool
