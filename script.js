@@ -837,6 +837,8 @@ function openSkillCheckDialog() {
 
             // Set up event listeners for dynamic updates
             html.find("#actorSelect").on("change", function() {
+                const actorId = singleActor ? ownedActors[0].id : html.find("#actorSelect").val();
+                const actor = game.actors.get(actorId);
                 loadActorData(actor, html);
             });
             html.find("#skillSelect").on("change", function() {
