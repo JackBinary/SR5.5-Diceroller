@@ -1,5 +1,4 @@
-// Shadowrun 6E Dice Roller Function
-function rollDice(pool, explode = false, wild = false) {
+unction rollDice(pool, explode = false, wild = false) {
     console.log(`RollDice: ${pool}`)
     let result = [];
     let hits = 0;
@@ -9,10 +8,26 @@ function rollDice(pool, explode = false, wild = false) {
     let boon = false;
     let bust = false;
 
+    // Mapping for dice Unicode and colors
+    const diceMapping = {
+        1: { icon: "⚀", color: "red" },
+        2: { icon: "⚁", color: "" },
+        3: { icon: "⚂", color: "" },
+        4: { icon: "⚃", color: "" },
+        5: { icon: "⚄", color: "green" },
+        6: { icon: "⚅", color: "green" }
+    };
+
     // Roll the main dice pool
     for (let i = 0; i < pool; ) {
         let roll = Math.floor(Math.random() * 6) + 1;
-        result.push(roll);
+        let rollColor = diceMapping[roll].color;
+        if (oneProtect) {
+            rollColor = "yellow"; // Mark exploded rolls as yellow
+            if ([5,6].includes(roll)) {
+                rollColor = "orange";
+            }
+        }
 
         // Check if this roll should be "protected"
         if (oneProtect && roll === 1) {
@@ -23,19 +38,22 @@ function rollDice(pool, explode = false, wild = false) {
         // Handle "exploding" 6s
         if (explode && roll === 6) {
             oneProtect = true; // Enable protection for the next roll
+            result.push({ roll, color: rollColor }); // Push the 6 with yellow
         } else {
+            result.push({ roll, color: rollColor });
             i += 1; // Only count non-exploding dice towards the pool
         }
     }
 
     // Determine glitch
-    let onesCount = result.filter(roll => roll === 1).length;
+    let onesCount = result.filter(r => r.roll === 1).length;
     glitch = (onesCount - protectedOnes) >= Math.floor(pool / 2);
 
     // Handle the wild die, if applicable
     if (wild) {
         let wildRoll = Math.floor(Math.random() * 6) + 1;
-        result.push(wildRoll);
+        let wildColor = "cyan"; // Wild die is cyan
+        result.push({ roll: wildRoll, color: wildColor });
 
         if ([5, 6].includes(wildRoll)) {
             boon = true;
@@ -47,17 +65,24 @@ function rollDice(pool, explode = false, wild = false) {
         if (explode && wildRoll === 6) {
             while (wildRoll === 6) {
                 wildRoll = Math.floor(Math.random() * 6) + 1;
-                result.push(wildRoll);
+                wildColor = "magenta"; // Exploded wild die is purple
+                result.push({ roll: wildRoll, color: wildColor });
             }
         }
     }
 
     // Count hits
-    hits = result.filter(roll => [5, 6].includes(roll)).length;
-    if (boon) hits += 3;
-    if (bust) hits -= result.filter(roll => roll === 6).length;
+    hits = result.filter(r => [5, 6].includes(r.roll)).length;
+    if (boon) hits += 2;
+    if (bust) hits -= result.filter(r => r.roll === 5).length;
 
-    return { result, hits, glitch };
+    // Map results to Unicode with color styling
+    const formattedResult = result.map(({ roll, color }) => {
+        const { icon } = diceMapping[roll];
+        return `<span style="color: ${color};">${icon}</span>`;
+    });
+
+    return { result: formattedResult, hits, glitch };
 }
 
 // Defense Test Handler Function
@@ -117,12 +142,7 @@ function handleDefenseTest(hits, dv, actorId) {
                             <tr>
                                 <th>Result</th>
                                 <td>
-                                  ${defenseResult.result.map(value => {
-                                    let color = '';
-                                    if (value === 1) color = 'red';
-                                    else if (value === 5 || value === 6) color = 'green';
-                                    return `<span style="color: ${color};">${value}</span>`;
-                                  }).join(', ')}
+                                  ${defenseResult.result.join(' ')}
                                 </td>
                             </tr>
                             <tr>
@@ -201,12 +221,8 @@ function handleSoakTest(damage, actor) {
                             <tr>
                                 <th>Result</th>
                                 <td>
-                                  ${soakResult.result.map(value => {
-                                    let color = '';
-                                    if (value === 1) color = 'red';
-                                    else if (value === 5 || value === 6) color = 'green';
-                                    return `<span style="color: ${color};">${value}</span>`;
-                                  }).join(', ')}
+                                  ${soakResult.result.join(', ')}
+                                  
                                 </td>
                             </tr>
                             <tr>
@@ -447,12 +463,7 @@ async function setupCombatDialog() {
                                                     <tr>
                                                         <th>Result</th>
                                                         <td>
-                                                          ${rollResult.result.map(value => {
-                                                            let color = '';
-                                                            if (value === 1) color = 'red';
-                                                            else if (value === 5 || value === 6) color = 'green';
-                                                            return `<span style="color: ${color};">${value}</span>`;
-                                                          }).join(', ')}
+                                                          ${rollResult.result.join(', ')}
                                                         </td>
                                                     </tr>
                                                     <tr>
