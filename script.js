@@ -211,3 +211,206 @@ Hooks.on("renderChatMessage", (message, html) => {
     }
 });
 
+// Adds Combat Setup Dialog functionality to the module
+function openCombatSetupDialog() {
+    const ownedActors = game.actors.filter(actor => actor.isOwner && actor.type === "character");
+
+    if (ownedActors.length === 0) {
+        ui.notifications.warn("You do not own any actors to perform this action.");
+        return;
+    }
+
+    let selectedActor = ownedActors.length === 1 ? ownedActors[0] : null;
+    const targetTokens = Array.from(game.user.targets);
+
+    if (targetTokens.length !== 1) {
+        ui.notifications.warn("Please select a single target using the targeting tool.");
+        return;
+    }
+
+    const targetActor = targetTokens[0].actor;
+    let actorOptions = ownedActors.map(actor => `<option value="${actor.id}">${actor.name}</option>`).join("");
+
+    new Dialog({
+        title: "Combat Setup",
+        content: getCombatSetupContent(ownedActors, selectedActor, actorOptions),
+        buttons: {
+            ok: {
+                label: "Confirm",
+                callback: (html) => handleCombatSetupConfirm(html, selectedActor, targetActor)
+            },
+            cancel: { label: "Cancel" }
+        },
+        render: (html) => renderCombatSetupDialog(html, selectedActor, targetActor),
+        default: "ok"
+    }).render(true);
+}
+
+// Helper function to generate the HTML content for the combat setup dialog
+function getCombatSetupContent(ownedActors, selectedActor, actorOptions) {
+    return `
+        <form>
+        ${ownedActors.length === 1 ? `<p>Actor: ${selectedActor.name}</p>` : `
+        <div class="form-group">
+            <label for="actor-select">Actor:</label>
+            <select id="actor-select">${actorOptions}</select>
+        </div>`}
+        
+        <div class="form-group">
+            <label for="weapon-select">Weapon:</label>
+            <select id="weapon-select" disabled></select>
+        </div>
+        
+        <div class="form-group" id="range-mode-container" style="display: none;">
+            <label for="range-select">Range:</label>
+            <select id="range-select"></select>
+            <label for="mode-select">Mode:</label>
+            <select id="mode-select"></select>
+        </div>
+        
+        <div class="form-group" id="attribute-select-container" style="display: none;">
+            <label for="attribute-select">Attribute:</label>
+            <select id="attribute-select">
+                <option value="agility">Agility</option>
+                <option value="strength">Strength</option>
+            </select>
+        </div>
+        
+        <div class="form-group">
+            <label for="attack-rating">Attack Rating:</label>
+            <input id="attack-rating" type="text" readonly />
+            <label for="modifier">Modifier:</label>
+            <input id="modifier" type="number" value="0" />
+        </div>
+        
+        <div class="form-group">
+            <label for="damage-value">Base Damage:</label>
+            <input id="damage-value" type="text" readonly />
+        </div>
+        
+        <div class="form-group">
+            <label for="defense-rating">Target Defense Rating:</label>
+            <input id="defense-rating" type="text" readonly />
+        </div>
+        </form>
+    `;
+}
+
+// Function to handle dialog confirmation and open additional options
+function handleCombatSetupConfirm(html, selectedActor, targetActor) {
+    const actorId = selectedActor ? selectedActor.id : html.find("#actor-select").val();
+    const weaponId = html.find("#weapon-select").val();
+    const rangeCategory = html.find("#range-select").val();
+    const mode = html.find("#mode-select").val();
+    const attribute = html.find("#attribute-select").val();
+    const modifier = parseInt(html.find("#modifier").val(), 10);
+
+    const actor = game.actors.get(actorId);
+    const weapon = actor.items.get(weaponId);
+
+    if (actor && weapon && targetActor) {
+        // Further calculations for attack rating, damage, and defense rating here
+
+        // Display edge gain information in chat
+        displayEdgeGain(actor, targetActor, attackRating, targetDefenseRating);
+
+        // Open additional options dialog
+        openAdditionalOptionsDialog(actor);
+    } else {
+        ui.notifications.warn("Please select a valid actor and weapon.");
+    }
+}
+
+// Function to display edge gain in chat
+function displayEdgeGain(actor, targetActor, attackRating, targetDefenseRating) {
+    let bonusEdge = Math.floor(Math.abs(attackRating - targetDefenseRating) / 4);
+    let edge_bias = Math.sign(attackRating - targetDefenseRating);
+
+    if (edge_bias > 0) {
+        ChatMessage.create({
+            user: game.user.id,
+            speaker: { alias: actor.name },
+            content: `${actor.name} gains ${bonusEdge} Edge for having an attack rating substantially higher than ${targetActor.name}'s defense rating.`
+        });
+    } else if (edge_bias < 0) {
+        ChatMessage.create({
+            user: game.user.id,
+            speaker: { alias: actor.name },
+            content: `${targetActor.name} gains ${bonusEdge} Edge for having a defense rating substantially higher than ${actor.name}'s attack rating.`
+        });
+    }
+}
+
+// Function to open additional options dialog for further action
+function openAdditionalOptionsDialog(actor) {
+    // Generate skill and attribute options for further actions
+    const skills = Object.entries(actor.system.skills.active)
+        .filter(([_, skill]) => !skill.hidden)
+        .map(([key, skill]) => ({ key, label: skill.name }));
+    const attributes = Object.keys(actor.system.attributes)
+        .filter(attr => ["body", "agility", "reaction", "strength", "willpower", "logic", "intuition", "charisma"].includes(attr));
+
+    const skillOptions = skills.map(skill => `<option value="${skill.key}">${skill.label}</option>`).join("");
+    const attributeOptions = attributes.map(attr => `<option value="${attr}">${attr.charAt(0).toUpperCase() + attr.slice(1)}</option>`).join("");
+
+    new Dialog({
+        title: "Additional Options",
+        content: `
+            <form>
+                <div class="form-group">
+                    <label for="skill-select">Skill:</label>
+                    <select id="skill-select">${skillOptions}</select>
+                </div>
+                <div class="form-group">
+                    <label for="attribute-select">Attribute:</label>
+                    <select id="attribute-select">${attributeOptions}</select>
+                </div>
+                <div class="form-group">
+                    <label for="modifier">Modifier:</label>
+                    <input id="modifier" type="number" value="0" />
+                </div>
+                <div class="form-group">
+                    <label for="wild-die">Wild Die:</label>
+                    <input id="wild-die" type="checkbox" />
+                </div>
+                <div class="form-group">
+                    <label for="explode-sixes">Explode Sixes:</label>
+                    <input id="explode-sixes" type="checkbox" />
+                </div>
+                <div class="form-group">
+                    <label for="dice-pool">Dice Pool:</label>
+                    <input id="dice-pool" type="text" readonly />
+                </div>
+            </form>
+        `,
+        buttons: {
+            ok: { label: "Roll Dice", callback: (html) => rollDiceAndDisplayResult(html, actor) },
+            cancel: { label: "Cancel" }
+        },
+        render: (html) => setupDicePoolUpdate(html, actor),
+        default: "ok"
+    }).render(true);
+}
+
+// Function to update the dice pool dynamically
+function setupDicePoolUpdate(html, actor) {
+    const updateDicePool = () => {
+        const selectedSkill = html.find("#skill-select").val();
+        const selectedAttribute = html.find("#attribute-select").val();
+        const modifier = parseInt(html.find("#modifier").val(), 10) || 0;
+
+        const skillBase = actor.system.skills.active[selectedSkill]?.base || 0;
+        const attributeBase = actor.system.attributes[selectedAttribute]?.base || 0;
+        const attributeTemp = actor.system.attributes[selectedAttribute]?.temp || 0;
+
+        const dicePool = skillBase + attributeBase + attributeTemp + modifier;
+        html.find("#dice-pool").val(dicePool);
+    };
+
+    html.find("#skill-select, #attribute-select").change(updateDicePool);
+    html.find("#modifier").on("input", updateDicePool);
+    updateDicePool();
+}
+
+// Expose openCombatSetupDialog function for external calls
+window.openCombatSetupDialog = openCombatSetupDialog;
