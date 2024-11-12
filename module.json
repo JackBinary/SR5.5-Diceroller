@@ -1,0 +1,14 @@
+{
+  "name": "sr-5-5-diceroller",
+  "title": "SR5.5-Diceroller",
+  "description": "A dice roller to give shadowrun 6e compatibility to 5e sheets",
+  "version": "1.0.0",
+  "author": "Your Name",
+  "esmodules": ["script.js"],
+  "manifest": "",
+  "download": "",
+  "minimumCoreVersion": "0.8",
+  "compatibleCoreVersion": "12",
+  "systems": [],
+  "scripts": ["script.js"]
+}
