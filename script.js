@@ -1,5 +1,6 @@
 // Shadowrun 6E Dice Roller Function
 function rollDice(pool, explode = false, wild = false) {
+    console.log(`RollDice: ${pool}`)
     let result = [];
     let hits = 0;
     let protectedOnes = 0;
@@ -99,6 +100,7 @@ function handleDefenseTest(hits, dv, actorId) {
                     const explode = html.find('input[name="explode"]').is(':checked');
                     const wild = html.find('input[name="wild"]').is(':checked');
                     const finalDefensePool = defensePool + modifier;
+                    console.log(`${actor.name}, Reaction: ${reaction}, Intuition: ${intuition}, Mod: ${modifier}`)
 
                     // Roll defense
                     const defenseResult = rollDice(finalDefensePool, explode, wild);
