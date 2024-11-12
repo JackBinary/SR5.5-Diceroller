@@ -713,7 +713,7 @@ function openSkillCheckDialog() {
 
                     // Display the result message in chat
                     const message = `
-                        <h3>${actorName} defends using ${skillName} + ${attributeName} (Mod: ${modifier})</h3>
+                        <h3>${actorName} rolls ${skillName} + ${attributeName} (Mod: ${modifier})</h3>
                         <table>
                             <tr>
                                 <th>Result</th>
