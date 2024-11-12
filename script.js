@@ -757,3 +757,109 @@ function openSkillCheckDialog() {
         }
     }).render(true);
 }
+
+// Function to load actor data and populate fields based on the selected actor
+function loadActorData(selectedActorId, html) {
+    const actor = game.actors.get(selectedActorId);
+    if (!actor || !actor.system.skills || !actor.system.track) {
+        return;
+    }
+
+    // Calculate pain modifiers based on wound and stun values
+    const stunValue = actor.system.track.stun.value || 0;
+    const physicalValue = actor.system.track.physical.value || 0;
+    let painModifier = -Math.floor(stunValue / 3) - Math.floor(physicalValue / 3);
+
+    // Populate the Pain Tolerance dropdown if there’s a pain modifier
+    const painToleranceSelect = painModifier < 0
+        ? `
+        <label for="painTolerance">Pain Tolerance:</label>
+        <select id="painTolerance">
+            <option value="none">None</option>
+            <option value="low">Low Pain Tolerance (-2 per 3 damage)</option>
+            <option value="high">High Pain Tolerance (reduces final negative by 1)</option>
+            <option value="editor">Pain Editor (ignores all negatives)</option>
+        </select>`
+        : "";
+
+    // Populate skills in the skill dropdown
+    const skillOptions = Object.entries(actor.system.skills.active || {})
+        .filter(([skillKey, skill]) => skill && !skill.hidden && (skill.canDefault || skill.base >= 1))
+        .map(([skillKey, skill]) => `<option value="${skillKey}" data-skillbase="${skill.base}" data-type="skill">${skill.label || skill.name}</option>`)
+        .join('');
+
+    // Generate attribute options based on the character's "special" value and add to the skill dropdown
+    const attributeOptions = getAttributeList(actor)
+        .map(attributeKey => {
+            const { displayName, baseValue } = getAttributeData(attributeKey.toLowerCase().replace(/\s+/g, '_'), actor);
+            return `<option value="${attributeKey.toLowerCase().replace(/\s+/g, '_')}" data-skillbase="${baseValue}" data-type="attribute">${displayName}</option>`;
+        })
+        .join('');
+
+    html.find("#skillSelect").html(skillOptions + attributeOptions);
+    html.find("#attributeSelect").html(attributeOptions);
+    html.find("#painToleranceContainer").html(painToleranceSelect);
+
+    updateDicePool(html); // Update dice pool display
+}
+
+// Helper function to get attribute display name and values (base and temp)
+function getAttributeData(attributeKey, actor) {
+    const attributes = actor.system.attributes || {};
+    const matrix = actor.system.matrix || {};
+    if (attributeKey === "device_rating" && matrix.rating) {
+        return { displayName: "Device Rating", baseValue: matrix.rating, tempValue: 0 };
+    }
+    const attributeData = attributes[attributeKey] || matrix[attributeKey];
+    if (attributeData) {
+        const displayName = attributeKey.charAt(0).toUpperCase() + attributeKey.slice(1).replace(/_/g, ' ');
+        const baseValue = attributeData.base || attributeData.value || 0;
+        const tempValue = attributeData.temp !== null ? attributeData.temp : 0;
+        return { displayName, baseValue, tempValue };
+    }
+    return { displayName: attributeKey, baseValue: 0, tempValue: 0 };
+}
+
+// Function to get the list of attributes based on actor "special" value
+function getAttributeList(actor) {
+    const baseAttributes = ["Body", "Agility", "Reaction", "Strength", "Willpower", "Logic", "Intuition", "Charisma"];
+    const special = actor.system.special || "mundane";
+
+    if (special === "magic") {
+        baseAttributes.push("Magic", "Initiation");
+    } else if (special === "resonance") {
+        baseAttributes.push("Resonance", "Submersion");
+    }
+
+    const matrix = actor.system.matrix;
+    if (matrix && matrix.rating > 0) {
+        baseAttributes.push("device_rating", "Firewall", "Data Processing", "Attack", "Sleaze");
+    }
+
+    return baseAttributes;
+}
+
+// Function to calculate and update the dice pool
+function updateDicePool(html) {
+    const selectedSkill = html.find("#skillSelect option:selected");
+    const skillName = selectedSkill.text();
+    const skillBase = parseInt(selectedSkill.data("skillbase")) || 0;
+    const selectedAttributeKey = html.find("#attributeSelect").val();
+    const modifier = parseInt(html.find("#modifier").val()) || 0;
+    const selectedActorId = html.find("#actorSelect").val() || (singleActor ? ownedActors[0].id : null);
+    const actor = game.actors.get(selectedActorId);
+
+    const { displayName: attributeDisplayName, baseValue: attributeBase, tempValue: attributeTemp } = actor ? getAttributeData(selectedAttributeKey, actor) : { displayName: "", baseValue: 0, tempValue: 0 };
+    let dicePool = skillBase + attributeBase + attributeTemp + modifier;
+
+    const painTolerance = html.find("#painTolerance").val();
+    if (painTolerance === "low") {
+        dicePool -= Math.floor((actor.system.track.stun.value + actor.system.track.physical.value) / 3);
+    } else if (painTolerance === "high") {
+        dicePool += 1;
+    } else if (painTolerance === "editor") {
+        dicePool += Math.floor((actor.system.track.stun.value + actor.system.track.physical.value) / 3);
+    }
+
+    html.find("#skillInfo").val(`${skillName} + ${attributeDisplayName} (${dicePool}d6)`);
+}
