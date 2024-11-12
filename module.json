@@ -6,7 +6,7 @@
   "author": "Your Name",
   "esmodules": ["script.js"],
   "manifest": "https://raw.githubusercontent.com/JackBinary/SR5.5-Diceroller/refs/heads/main/module.json",
-  "download": "",
+  "download": "https://github.com/JackBinary/SR5.5-Diceroller/archive/refs/heads/main.zip",
   "minimumCoreVersion": "0.8",
   "compatibleCoreVersion": "12",
   "systems": [],
