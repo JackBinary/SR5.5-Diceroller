@@ -211,8 +211,8 @@ Hooks.on("renderChatMessage", (message, html) => {
     }
 });
 
-// Adds Combat Setup Dialog functionality to the module
-function openCombatSetupDialog() {
+// Combat Setup Function (formerly macro)
+async function setupCombatDialog() {
     const ownedActors = game.actors.filter(actor => actor.isOwner && actor.type === "character");
 
     if (ownedActors.length === 0) {
@@ -229,188 +229,349 @@ function openCombatSetupDialog() {
     }
 
     const targetActor = targetTokens[0].actor;
+
     let actorOptions = ownedActors.map(actor => `<option value="${actor.id}">${actor.name}</option>`).join("");
 
     new Dialog({
         title: "Combat Setup",
-        content: getCombatSetupContent(ownedActors, selectedActor, actorOptions),
-        buttons: {
-            ok: {
-                label: "Confirm",
-                callback: (html) => handleCombatSetupConfirm(html, selectedActor, targetActor)
-            },
-            cancel: { label: "Cancel" }
-        },
-        render: (html) => renderCombatSetupDialog(html, selectedActor, targetActor),
-        default: "ok"
-    }).render(true);
-}
-
-// Helper function to generate the HTML content for the combat setup dialog
-function getCombatSetupContent(ownedActors, selectedActor, actorOptions) {
-    return `
+        content: `
         <form>
         ${ownedActors.length === 1 ? `<p>Actor: ${selectedActor.name}</p>` : `
         <div class="form-group">
-            <label for="actor-select">Actor:</label>
-            <select id="actor-select">${actorOptions}</select>
+        <label for="actor-select">Actor:</label>
+        <select id="actor-select">${actorOptions}</select>
         </div>`}
         
         <div class="form-group">
-            <label for="weapon-select">Weapon:</label>
-            <select id="weapon-select" disabled></select>
+        <label for="weapon-select">Weapon:</label>
+        <select id="weapon-select" disabled></select>
         </div>
         
         <div class="form-group" id="range-mode-container" style="display: none;">
-            <label for="range-select">Range:</label>
-            <select id="range-select"></select>
-            <label for="mode-select">Mode:</label>
-            <select id="mode-select"></select>
+        <label for="range-select">Range:</label>
+        <select id="range-select"></select>
+        <label for="mode-select">Mode:</label>
+        <select id="mode-select"></select>
         </div>
         
         <div class="form-group" id="attribute-select-container" style="display: none;">
-            <label for="attribute-select">Attribute:</label>
-            <select id="attribute-select">
-                <option value="agility">Agility</option>
-                <option value="strength">Strength</option>
-            </select>
+        <label for="attribute-select">Attribute:</label>
+        <select id="attribute-select">
+        <option value="agility">Agility</option>
+        <option value="strength">Strength</option>
+        </select>
         </div>
         
         <div class="form-group">
-            <label for="attack-rating">Attack Rating:</label>
-            <input id="attack-rating" type="text" readonly />
-            <label for="modifier">Modifier:</label>
-            <input id="modifier" type="number" value="0" />
+        <label for="attack-rating">Attack Rating:</label>
+        <input id="attack-rating" type="text" readonly />
+        <label for="modifier">Modifier:</label>
+        <input id="modifier" type="number" value="0" />
         </div>
         
         <div class="form-group">
-            <label for="damage-value">Base Damage:</label>
-            <input id="damage-value" type="text" readonly />
+        <label for="damage-value">Base Damage:</label>
+        <input id="damage-value" type="text" readonly />
         </div>
         
         <div class="form-group">
-            <label for="defense-rating">Target Defense Rating:</label>
-            <input id="defense-rating" type="text" readonly />
+        <label for="defense-rating">Target Defense Rating:</label>
+        <input id="defense-rating" type="text" readonly />
         </div>
         </form>
-    `;
-}
-
-// Function to handle dialog confirmation and open additional options
-function handleCombatSetupConfirm(html, selectedActor, targetActor) {
-    const actorId = selectedActor ? selectedActor.id : html.find("#actor-select").val();
-    const weaponId = html.find("#weapon-select").val();
-    const rangeCategory = html.find("#range-select").val();
-    const mode = html.find("#mode-select").val();
-    const attribute = html.find("#attribute-select").val();
-    const modifier = parseInt(html.find("#modifier").val(), 10);
-
-    const actor = game.actors.get(actorId);
-    const weapon = actor.items.get(weaponId);
-
-    if (actor && weapon && targetActor) {
-        // Further calculations for attack rating, damage, and defense rating here
-
-        // Display edge gain information in chat
-        displayEdgeGain(actor, targetActor, attackRating, targetDefenseRating);
-
-        // Open additional options dialog
-        openAdditionalOptionsDialog(actor);
-    } else {
-        ui.notifications.warn("Please select a valid actor and weapon.");
-    }
-}
-
-// Function to display edge gain in chat
-function displayEdgeGain(actor, targetActor, attackRating, targetDefenseRating) {
-    let bonusEdge = Math.floor(Math.abs(attackRating - targetDefenseRating) / 4);
-    let edge_bias = Math.sign(attackRating - targetDefenseRating);
-
-    if (edge_bias > 0) {
-        ChatMessage.create({
-            user: game.user.id,
-            speaker: { alias: actor.name },
-            content: `${actor.name} gains ${bonusEdge} Edge for having an attack rating substantially higher than ${targetActor.name}'s defense rating.`
-        });
-    } else if (edge_bias < 0) {
-        ChatMessage.create({
-            user: game.user.id,
-            speaker: { alias: actor.name },
-            content: `${targetActor.name} gains ${bonusEdge} Edge for having a defense rating substantially higher than ${actor.name}'s attack rating.`
-        });
-    }
-}
-
-// Function to open additional options dialog for further action
-function openAdditionalOptionsDialog(actor) {
-    // Generate skill and attribute options for further actions
-    const skills = Object.entries(actor.system.skills.active)
-        .filter(([_, skill]) => !skill.hidden)
-        .map(([key, skill]) => ({ key, label: skill.name }));
-    const attributes = Object.keys(actor.system.attributes)
-        .filter(attr => ["body", "agility", "reaction", "strength", "willpower", "logic", "intuition", "charisma"].includes(attr));
-
-    const skillOptions = skills.map(skill => `<option value="${skill.key}">${skill.label}</option>`).join("");
-    const attributeOptions = attributes.map(attr => `<option value="${attr}">${attr.charAt(0).toUpperCase() + attr.slice(1)}</option>`).join("");
-
-    new Dialog({
-        title: "Additional Options",
-        content: `
-            <form>
-                <div class="form-group">
-                    <label for="skill-select">Skill:</label>
-                    <select id="skill-select">${skillOptions}</select>
-                </div>
-                <div class="form-group">
-                    <label for="attribute-select">Attribute:</label>
-                    <select id="attribute-select">${attributeOptions}</select>
-                </div>
-                <div class="form-group">
-                    <label for="modifier">Modifier:</label>
-                    <input id="modifier" type="number" value="0" />
-                </div>
-                <div class="form-group">
-                    <label for="wild-die">Wild Die:</label>
-                    <input id="wild-die" type="checkbox" />
-                </div>
-                <div class="form-group">
-                    <label for="explode-sixes">Explode Sixes:</label>
-                    <input id="explode-sixes" type="checkbox" />
-                </div>
-                <div class="form-group">
-                    <label for="dice-pool">Dice Pool:</label>
-                    <input id="dice-pool" type="text" readonly />
-                </div>
-            </form>
         `,
         buttons: {
-            ok: { label: "Roll Dice", callback: (html) => rollDiceAndDisplayResult(html, actor) },
+            ok: {
+                label: "Confirm",
+                callback: (html) => {
+                    const actorId = selectedActor ? selectedActor.id : html.find("#actor-select").val();
+                    const weaponId = html.find("#weapon-select").val();
+                    const rangeCategory = html.find("#range-select").val();
+                    const mode = html.find("#mode-select").val();
+                    const attribute = html.find("#attribute-select").val();
+                    const modifier = parseInt(html.find("#modifier").val(), 10);
+                    
+                    const actor = game.actors.get(actorId);
+                    const weapon = actor.items.get(weaponId);
+                    
+                    if (actor && weapon && targetActor) {
+                        let attackRating = 0;
+                        let baseDamage = weapon.system.action.damage.base;
+                        
+                        if (weapon.system.category === "melee") {
+                            const agility = actor.system.attributes.agility.value + actor.system.attributes.agility.temp;
+                            const strength = actor.system.attributes.strength.value + actor.system.attributes.strength.temp;
+                            const reach = weapon.system.melee.reach;
+                            
+                            attackRating = attribute === "agility" ? agility + reach : strength + reach;
+                        } else if (weapon.system.category === "range") {
+                            const ranges = weapon.system.range.ranges;
+                            attackRating = ranges[rangeCategory];
+                            
+                            if (mode === "semi_auto") {
+                                attackRating -= 2;
+                                baseDamage += 1;
+                            } else if (mode === "burst_fire") {
+                                attackRating -= 4;
+                                baseDamage += 2;
+                            } else if (mode === "full_auto") {
+                                attackRating -= 6;
+                                baseDamage += 3;
+                            }
+                        }
+                        
+                        attackRating += modifier;
+                        
+                        const baseDefense = targetActor.system.attributes.body.value;
+                        const armorValue = targetActor.system.armor.value || 0;
+                        const targetDefenseRating = baseDefense + armorValue;
+                        
+                        html.find("#attack-rating").val(attackRating);
+                        html.find("#damage-value").val(baseDamage);
+                        html.find("#defense-rating").val(targetDefenseRating);
+                        
+                        // Calculate edge gain according to house rule: +1 edge for every 4 points over defense rating
+                        let bonusEdge = Math.floor(Math.abs(attackRating - targetDefenseRating) / 4);
+                        let edge_bias = Math.sign(attackRating - targetDefenseRating);
+                        
+                        // Output edge gain information to chat
+                        if (edge_bias > 0) {
+                            ChatMessage.create({
+                                user: game.user.id,
+                                speaker: { alias: actor.name },
+                                content: `${actor.name} gains ${bonusEdge} Edge for having an attack rating substantially higher than ${targetActor.name}'s defense rating.`
+                            });
+                        } else if (edge_bias < 0) {
+                            ChatMessage.create({
+                                user: game.user.id,
+                                speaker: { alias: actor.name },
+                                content: `${targetActor.name} gains ${bonusEdge} Edge for having a defense rating substantially higher than ${actor.name}'s attack rating.`
+                            });
+                        }
+                        
+                        // Open a new dialog with additional options
+                        const skills = Object.entries(actor.system.skills.active).filter(([_, skill]) => !skill.hidden).map(([key, skill]) => ({ key, label: skill.name }));
+                        const attributes = Object.keys(actor.system.attributes).filter(attr => ["body", "agility", "reaction", "strength", "willpower", "logic", "intuition", "charisma"].includes(attr));
+                        
+                        const skillOptions = skills.map(skill => `<option value="${skill.key}">${skill.label}</option>`).join("");
+                        const attributeOptions = attributes.map(attr => `<option value="${attr}">${attr.charAt(0).toUpperCase() + attr.slice(1)}</option>`).join("");
+                        
+                        new Dialog({
+                            title: "Additional Options",
+                            content: `
+                            <form>
+                            <div class="form-group">
+                            <label for="skill-select">Skill:</label>
+                            <select id="skill-select">
+                            ${skillOptions}
+                            </select>
+                            </div>
+                            <div class="form-group">
+                            <label for="attribute-select">Attribute:</label>
+                            <select id="attribute-select">
+                            ${attributeOptions}
+                            </select>
+                            </div>
+                            <div class="form-group">
+                            <label for="modifier">Modifier:</label>
+                            <input id="modifier" type="number" value="0" />
+                            </div>
+                            <div class="form-group">
+                            <label for="wild-die">Wild Die:</label>
+                            <input id="wild-die" type="checkbox" />
+                            </div>
+                            <div class="form-group">
+                            <label for="explode-sixes">Explode Sixes:</label>
+                            <input id="explode-sixes" type="checkbox" />
+                            </div>
+                            <div class="form-group">
+                            <label for="dice-pool">Dice Pool:</label>
+                            <input id="dice-pool" type="text" readonly />
+                            </div>
+                            </form>
+                            `,
+                            buttons: {
+                                ok: {
+                                    label: "Roll Dice",
+                                    callback: (html) => {
+                                        const selectedSkill = html.find("#skill-select").val();
+                                        const selectedSkillLabel = html.find("#skill-select option:selected").text();
+                                        const selectedAttribute = html.find("#attribute-select").val();
+                                        const selectedAttributeLabel = html.find("#attribute-select option:selected").text();
+                                        const skillBase = actor.system.skills.active[selectedSkill].base;
+                                        const attributeBase = actor.system.attributes[selectedAttribute].base;
+                                        const attributeTemp = actor.system.attributes[selectedAttribute].temp || 0;
+                                        const modifier = parseInt(html.find("#modifier").val(), 10) || 0;
+                                        const useWildDie = html.find("#wild-die").is(":checked");
+                                        const explodeSixes = html.find("#explode-sixes").is(":checked");
+                                        const dicePool = skillBase + attributeBase + attributeTemp + modifier;
+                                        
+                                        const rollResult = rollDice(dicePool, explodeSixes, useWildDie);
+                                        const hits = rollResult.hits;
+                                        const rollOutput = rollResult.result.join(", ");
+                                        
+                                        // Output result in chat
+                                        ChatMessage.create({
+                                            user: game.user.id,
+                                            speaker: { alias: actor.name },
+                                            content: `
+                                                <table>
+                                                    <tr><th>${actor.name} attacks ${targetActor.name} using ${selectedSkillLabel} + ${selectedAttributeLabel}</th></tr>
+                                                    <tr><td>Roll: ${rollOutput}</td></tr>
+                                                    <tr><td>Hits: ${hits}</td></tr>
+                                                    <tr><td>Damage Value: ${baseDamage}</td></tr>
+                                                </table>
+                                            `
+                                        });
+                                    }
+                                },
+                                cancel: { label: "Cancel" }
+                            },
+                            render: (html) => {
+                                const updateDicePool = () => {
+                                    const selectedSkill = html.find("#skill-select").val();
+                                    const selectedAttribute = html.find("#attribute-select").val();
+                                    const modifier = parseInt(html.find("#modifier").val(), 10) || 0;
+                                    
+                                    const skillBase = actor.system.skills.active[selectedSkill]?.base || 0;
+                                    const attributeBase = actor.system.attributes[selectedAttribute]?.base || 0;
+                                    const attributeTemp = actor.system.attributes[selectedAttribute]?.temp || 0;
+                                    
+                                    const dicePool = skillBase + attributeBase + attributeTemp + modifier;
+                                    
+                                    html.find("#dice-pool").val(dicePool);
+                                };
+                                
+                                updateDicePool();
+                                
+                                html.find("#skill-select, #attribute-select").change(updateDicePool);
+                                html.find("#modifier").on("input", updateDicePool);
+                            },
+                            default: "ok"
+                        }).render(true);
+                    } else {
+                        ui.notifications.warn("Please select a valid actor and weapon.");
+                    }
+                }
+            },
             cancel: { label: "Cancel" }
         },
-        render: (html) => setupDicePoolUpdate(html, actor),
+        render: (html) => {
+            const weaponSelect = html.find("#weapon-select");
+            const rangeModeContainer = html.find("#range-mode-container");
+            const attributeSelectContainer = html.find("#attribute-select-container");
+            const defenseRatingInput = html.find("#defense-rating");
+            const modeSelect = html.find("#mode-select");
+            const rangeSelect = html.find("#range-select");
+            const attackRatingInput = html.find("#attack-rating");
+            const damageValueInput = html.find("#damage-value");
+            
+            const populateWeapons = (actor) => {
+                if (actor) {
+                    selectedActor = actor;
+                    const weapons = actor.items.filter(item => item.type === "weapon");
+                    if (weapons.length) {
+                        const weaponOptions = weapons.map(weapon => `<option value="${weapon.id}">${weapon.name}</option>`).join("");
+                        weaponSelect.html(weaponOptions).prop("disabled", false);
+                        weaponSelect.val(weapons[0].id);
+                        handleWeaponSelection(weapons[0]);
+                    } else {
+                        weaponSelect.html("").prop("disabled", true);
+                        rangeModeContainer.hide();
+                        attributeSelectContainer.hide();
+                    }
+                }
+            };
+            
+            const handleWeaponSelection = (weapon) => {
+                if (weapon.system.category === "range") {
+                    rangeModeContainer.show();
+                    attributeSelectContainer.hide();
+                    
+                    const modes = weapon.system.range.modes;
+                    const modeOptions = Object.keys(modes)
+                    .filter(mode => modes[mode])
+                    .map(mode => `<option value="${mode}">${mode.replace('_', ' ').replace(/\b\w/g, char => char.toUpperCase())}</option>`)
+                    .join("");
+                    modeSelect.html(modeOptions);
+                    
+                    const ranges = weapon.system.range.ranges;
+                    const rangeOptions = [
+                        { key: "short", label: "Close", value: ranges.short },
+                        { key: "medium", label: "Near", value: ranges.medium },
+                        { key: "long", label: "Medium", value: ranges.long },
+                        { key: "extreme", label: "Far", value: ranges.extreme }
+                    ].filter(range => range.value !== null)
+                    .map(range => `<option value="${range.key}">${range.label}</option>`)
+                    .join("");
+                    rangeSelect.html(rangeOptions);
+                    
+                    attackRatingInput.val(ranges.short);
+                    damageValueInput.val(weapon.system.action.damage.base);
+                } else if (weapon.system.category === "melee") {
+                    rangeModeContainer.hide();
+                    attributeSelectContainer.show();
+                    const attackRating = selectedActor.system.attributes.agility.value + weapon.system.melee.reach;
+                    attackRatingInput.val(attackRating);
+                    damageValueInput.val(weapon.system.action.damage.base);
+                }
+            };
+            
+            const updateAttackAndDamage = () => {
+                const weapon = selectedActor.items.get(weaponSelect.val());
+                const selectedRange = rangeSelect.val();
+                const selectedMode = modeSelect.val();
+                
+                if (weapon && weapon.system.category === "range") {
+                    const ranges = weapon.system.range.ranges;
+                    let attackRating = ranges[selectedRange];
+                    let baseDamage = weapon.system.action.damage.base;
+                    
+                    if (selectedMode === "semi_auto") {
+                        attackRating -= 2;
+                        baseDamage += 1;
+                    } else if (selectedMode === "burst_fire") {
+                        attackRating -= 4;
+                        baseDamage += 2;
+                    } else if (selectedMode === "full_auto") {
+                        attackRating -= 6;
+                        baseDamage += 3;
+                    }
+                    
+                    attackRatingInput.val(attackRating);
+                    damageValueInput.val(baseDamage);
+                }
+            };
+            
+            const updateDefenseRating = () => {
+                if (targetActor) {
+                    const baseDefense = targetActor.system.attributes.body.value;
+                    const armorValue = targetActor.system.armor.value || 0;
+                    defenseRatingInput.val(baseDefense + armorValue);
+                }
+            };
+            
+            html.find("#actor-select").change(event => {
+                const actor = game.actors.get(event.target.value);
+                populateWeapons(actor);
+            });
+            
+            html.find("#weapon-select").change(event => {
+                const weapon = selectedActor.items.get(event.target.value);
+                handleWeaponSelection(weapon);
+            });
+            
+            rangeSelect.change(updateAttackAndDamage);
+            modeSelect.change(updateAttackAndDamage);
+            
+            if (selectedActor) populateWeapons(selectedActor);
+            updateDefenseRating();
+        },
         default: "ok"
     }).render(true);
 }
 
-// Function to update the dice pool dynamically
-function setupDicePoolUpdate(html, actor) {
-    const updateDicePool = () => {
-        const selectedSkill = html.find("#skill-select").val();
-        const selectedAttribute = html.find("#attribute-select").val();
-        const modifier = parseInt(html.find("#modifier").val(), 10) || 0;
-
-        const skillBase = actor.system.skills.active[selectedSkill]?.base || 0;
-        const attributeBase = actor.system.attributes[selectedAttribute]?.base || 0;
-        const attributeTemp = actor.system.attributes[selectedAttribute]?.temp || 0;
-
-        const dicePool = skillBase + attributeBase + attributeTemp + modifier;
-        html.find("#dice-pool").val(dicePool);
-    };
-
-    html.find("#skill-select, #attribute-select").change(updateDicePool);
-    html.find("#modifier").on("input", updateDicePool);
-    updateDicePool();
-}
-
-// Expose openCombatSetupDialog function for external calls
-window.openCombatSetupDialog = openCombatSetupDialog;
+// Expose the setupCombatDialog function for use within Foundry's macro interface
+Hooks.once('ready', () => {
+    game.shadowrunDiceRoller = { setupCombatDialog };
+});
