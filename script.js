@@ -264,7 +264,7 @@ async function setupCombatDialog() {
     let actorOptions = ownedActors.map(actor => `<option value="${actor.id}">${actor.name}</option>`).join("");
 
     new Dialog({
-        title: "Combat Setup",
+        title: "Edge Check",
         content: `
         <form>
         ${ownedActors.length === 1 ? `<p>Actor: ${selectedActor.name}</p>` : `
@@ -304,16 +304,11 @@ async function setupCombatDialog() {
         <label for="damage-value">Base Damage:</label>
         <input id="damage-value" type="text" readonly />
         </div>
-        
-        <div class="form-group">
-        <label for="defense-rating">Target Defense Rating:</label>
-        <input id="defense-rating" type="text" readonly />
-        </div>
         </form>
         `,
         buttons: {
             ok: {
-                label: "Confirm",
+                label: "Prepare Attack",
                 callback: (html) => {
                     const actorId = selectedActor ? selectedActor.id : html.find("#actor-select").val();
                     const weaponId = html.find("#weapon-select").val();
@@ -388,7 +383,7 @@ async function setupCombatDialog() {
                         const attributeOptions = attributes.map(attr => `<option value="${attr}">${attr.charAt(0).toUpperCase() + attr.slice(1)}</option>`).join("");
                         
                         new Dialog({
-                            title: "Additional Options",
+                            title: "Prepare Attack",
                             content: `
                             <form>
                             <div class="form-group">
@@ -423,7 +418,7 @@ async function setupCombatDialog() {
                             `,
                             buttons: {
                                 ok: {
-                                    label: "Roll Dice",
+                                    label: "Roll Attack",
                                     callback: (html) => {
                                         const selectedSkill = html.find("#skill-select").val();
                                         const selectedSkillLabel = html.find("#skill-select option:selected").text();
@@ -477,7 +472,7 @@ async function setupCombatDialog() {
                                                     defenseButton: true,
                                                     hits: hits,
                                                     dv: baseDamage,
-                                                    actorId: actor.id
+                                                    actorId: targetActor.id
                                                 }
                                             }
                                         });
@@ -633,3 +628,132 @@ async function setupCombatDialog() {
 Hooks.once('ready', () => {
     game.shadowrunDiceRoller = { setupCombatDialog };
 });
+
+// Function to initialize and render the dropdown selection and roll interface
+function openSkillCheckDialog() {
+    const ownedActors = game.actors.filter(actor => actor.type === "character" && actor.isOwner);
+
+    if (ownedActors.length === 0) {
+        ui.notifications.warn("You don't own any characters to select.");
+        return;
+    }
+
+    const singleActor = ownedActors.length === 1;
+    const selectedActor = singleActor ? ownedActors[0] : null;
+
+    const actorOptions = singleActor
+        ? ""
+        : ownedActors.map(actor => `<option value="${actor.id}">${actor.name}</option>`).join('');
+
+    const content = `
+    <form>
+    ${!singleActor ? `
+        <div class="form-group" id="actorSelectContainer">
+        <label for="actorSelect">Select Actor:</label>
+        <select id="actorSelect">${actorOptions}</select>
+        </div>
+        ` : ""}
+        <div class="form-group" id="skillSelectContainer">
+        <label for="skillSelect">Select Skill or Attribute:</label>
+        <select id="skillSelect"></select>
+        </div>
+        <div class="form-group" id="attributeSelectContainer">
+        <label for="attributeSelect">Select Attribute:</label>
+        <select id="attributeSelect"></select>
+        </div>
+        <div class="form-group" id="modifierContainer">
+        <label for="modifier">Modifier:</label>
+        <input type="number" id="modifier" value="0" />
+        </div>
+        <div class="form-group">
+        <label for="wildDie">Wild Die:</label>
+        <input type="checkbox" id="wildDie" />
+        </div>
+        <div class="form-group">
+        <label for="explodeSixes">Explode 6s:</label>
+        <input type="checkbox" id="explodeSixes" />
+        </div>
+        <div class="form-group">
+        <label for="extendedTest">Extended Test:</label>
+        <input type="checkbox" id="extendedTest" />
+        </div>
+        <div class="form-group">
+        <label for="customRoll">Custom Roll:</label>
+        <input type="checkbox" id="customRoll" />
+        </div>
+        <div class="form-group" id="customDiceContainer" style="display: none;">
+        <label for="customDice">Number of Dice to Roll:</label>
+        <input type="number" id="customDice" value="0" />
+        </div>
+        <div class="form-group" id="skillInfoContainer">
+        <label for="skillInfo">Skill + Attribute Info:</label>
+        <input type="text" id="skillInfo" readonly />
+        </div>
+    </form>`;
+
+    new Dialog({
+        title: "Select Actor and Skill",
+        content: content,
+        buttons: {
+            ok: {
+                label: "Roll",
+                callback: (html) => {
+                    const customRoll = html.find("#customRoll").is(":checked");
+                    let dicePool = customRoll ? parseInt(html.find("#customDice").val()) || 0 : parseInt(html.find("#skillInfo").val().match(/\((\d+)d6\)/)[1], 10);
+                    const selectedActorId = html.find("#actorSelect").val() || (singleActor ? ownedActors[0].id : null);
+                    const actorName = game.actors.get(selectedActorId).name;
+                    const skillName = customRoll ? "Custom" : html.find("#skillSelect option:selected").text();
+                    const attributeName = customRoll ? "" : html.find("#attributeSelect option:selected").text();
+                    const modifier = parseInt(html.find("#modifier").val()) || 0;
+                    const useWildDie = html.find("#wildDie").is(":checked");
+                    const explodeSixes = html.find("#explodeSixes").is(":checked");
+
+                    // Perform roll using rollDice function
+                    const { result, hits, glitch } = rollDice(dicePool, explodeSixes, useWildDie);
+
+                    // Display the result message in chat
+                    const message = `
+                        <h3>${actorName} defends using ${skillName} + ${attributeName} (Mod: ${modifier})</h3>
+                        <table>
+                            <tr>
+                                <th>Result</th>
+                                <td>
+                                  ${result.map(value => {
+                                    let color = '';
+                                    if (value === 1) color = 'red';
+                                    else if (value === 5 || value === 6) color = 'green';
+                                    return `<span style="color: ${color};">${value}</span>`;
+                                  }).join(', ')}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Total Hits</th>
+                                <td>${hits}</td>
+                            </tr>
+                            ${glitch === true ? `
+                            <tr>
+                                There was a glitch!
+                            </tr>` : ``}
+                        </table>
+                    `;
+                    ChatMessage.create({ content: message });
+                }
+            },
+            cancel: { label: "Cancel" }
+        },
+        default: "ok",
+        render: (html) => {
+            loadActorData(singleActor ? ownedActors[0].id : html.find("#actorSelect").val(), html);
+            // Dynamic updates
+            html.find("#customRoll").on("change", function () {
+                if (this.checked) {
+                    html.find("#skillSelectContainer, #attributeSelectContainer, #modifierContainer, #skillInfoContainer").hide();
+                    html.find("#customDiceContainer").show();
+                } else {
+                    html.find("#skillSelectContainer, #attributeSelectContainer, #modifierContainer, #skillInfoContainer").show();
+                    html.find("#customDiceContainer").hide();
+                }
+            });
+        }
+    }).render(true);
+}
