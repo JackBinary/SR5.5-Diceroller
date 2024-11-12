@@ -105,21 +105,37 @@ function handleDefenseTest(hits, dv, actorId) {
                     const defenseHits = defenseResult.hits;
                     const netHits = Math.max(0, hits - defenseHits);
 
-                    // Calculate damage
+                    // Calculate Damage
                     let damage = dv + netHits;
-
+                    
                     // Display defense test results
                     const defenseTable = `
                         <table>
-                            <tr><th>Defense Test Hits</th><td>${defenseHits}</td></tr>
-                            <tr><th>Net Hits</th><td>${netHits}</td></tr>
-                            <tr><th>Damage</th><td>${damage}</td></tr>
+                            <tr>
+                                <th>Defense Test Hits</th>
+                                <td>${defenseHits}</td>
+                            </tr>
+                            <tr>
+                                <th>Net Hits</th>
+                                <td>${netHits}</td>
+                            </tr>
+                            ${netHits > 0 ? `
+                            <tr>
+                                <th>Damage</th>
+                                <td>${damage}</td>
+                            </tr>` : `
+                            <tr>
+                                <td colspan="2"><strong>Dodged!</strong></td>
+                            </tr>`}
                         </table>
                     `;
+                    
                     ChatMessage.create({ content: defenseTable });
 
-                    // Proceed to Soak Test
-                    handleSoakTest(damage, actor);
+                    if (netHits > 0) {
+                        // Proceed to Soak Test
+                        handleSoakTest(damage, actor);
+                    }
                 }
             }
         },
