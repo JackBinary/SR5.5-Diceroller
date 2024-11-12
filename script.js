@@ -707,36 +707,118 @@ function openSkillCheckDialog() {
                     const modifier = parseInt(html.find("#modifier").val()) || 0;
                     const useWildDie = html.find("#wildDie").is(":checked");
                     const explodeSixes = html.find("#explodeSixes").is(":checked");
+                    const extendedTest = html.find("#extendedTest").is(":checked");
 
-                    // Perform roll using rollDice function
-                    const { result, hits, glitch } = rollDice(dicePool, explodeSixes, useWildDie);
-
-                    // Display the result message in chat
-                    const message = `
-                        <h3>${actorName} rolls ${skillName} + ${attributeName} (Mod: ${modifier})</h3>
-                        <table>
-                            <tr>
-                                <th>Result</th>
-                                <td>
-                                  ${result.map(value => {
-                                    let color = '';
-                                    if (value === 1) color = 'red';
-                                    else if (value === 5 || value === 6) color = 'green';
-                                    return `<span style="color: ${color};">${value}</span>`;
-                                  }).join(', ')}
-                                </td>
-                            </tr>
-                            <tr>
-                                <th>Total Hits</th>
-                                <td>${hits}</td>
-                            </tr>
-                            ${glitch === true ? `
-                            <tr>
-                                There was a glitch!
-                            </tr>` : ``}
-                        </table>
-                    `;
-                    ChatMessage.create({ content: message });
+                    if (extendedTest === true) {
+                        let totalHits = 0;
+                        let rollCount = 0;
+                        let currentDicePool = dicePool;
+                        let allRollsLog = [];
+                    
+                        // Function to handle each roll in the extended test
+                        function extendedRoll() {
+                            rollCount++;
+                            let { result, hits, glitch } = rollDice(currentDicePool, explodeSixes, useWildDie);
+                    
+                            totalHits += hits;
+                    
+                            // Log current roll for cumulative display
+                            allRollsLog.push({
+                                rollNumber: rollCount,
+                                result: result,
+                            });
+                    
+                            // Build HTML for the table of rolls
+                            let rollHistoryRows = allRollsLog.map((log, index) => `
+                                <tr>
+                                    <th>Roll ${index + 1}:</th>
+                                    <td>${log.result.map(value => {
+                                        let color = value === 1 ? 'red' : (value === 5 || value === 6) ? 'green' : '';
+                                        return `<span style="color: ${color};">${value}</span>`;
+                                    }).join(', ')}</td>
+                                </tr>
+                            `).join('');
+                    
+                            // Construct message with cumulative roll history and interaction buttons
+                            let message = `
+                                <h3>Extended Test Roll #${rollCount} for ${actorName} - ${skillName} + ${attributeName}</h3>
+                                <table>
+                                    ${rollHistoryRows}
+                                    <tr>
+                                        <th>Total Hits</th>
+                                        <td>${totalHits}</td>
+                                    </tr>
+                                    ${glitch ? `
+                                    <tr>
+                                        <td colspan="2" style="color: red;">There was a glitch!</td>
+                                    </tr>` : ''}
+                                </table>
+                                <button class="continue-roll">Continue</button>
+                                <button class="stop-roll">Stop</button>`;
+                    
+                            // Create chat message and add buttons for interaction
+                            ChatMessage.create({ content: message }).then(chatMessage => {
+                                Hooks.once('renderChatMessage', (chatMessageHtml, html) => {
+                                    if (chatMessage.id === chatMessageHtml.id) {
+                                        // Handle "Continue" button
+                                        html.find(".continue-roll").on("click", function () {
+                                            currentDicePool -= 1; // Reduce dice pool if needed
+                                            chatMessage.delete(); // Remove previous message
+                                            extendedRoll(); // Trigger another roll
+                                        });
+                    
+                                        // Handle "Stop" button
+                                        html.find(".stop-roll").on("click", function () {
+                                            // Construct final message with cumulative roll history
+                                            const finalMessage = `
+                                                <h3>Final Results for ${actorName} - ${skillName} + ${attributeName}</h3>
+                                                <table>
+                                                    ${rollHistoryRows}
+                                                    <tr>
+                                                        <th>Total Hits</th>
+                                                        <td>${totalHits}</td>
+                                                    </tr>
+                                                </table>`;
+                                            ChatMessage.create({ content: finalMessage });
+                                        });
+                                    }
+                                });
+                            });
+                        }
+                    
+                        // Start the first roll in the extended test
+                        extendedRoll();
+                    } else {
+                        // Perform roll using rollDice function
+                        const { result, hits, glitch } = rollDice(dicePool, explodeSixes, useWildDie);
+    
+                        // Display the result message in chat
+                        const message = `
+                            <h3>${actorName} rolls ${skillName} + ${attributeName} (Mod: ${modifier})</h3>
+                            <table>
+                                <tr>
+                                    <th>Result</th>
+                                    <td>
+                                      ${result.map(value => {
+                                        let color = '';
+                                        if (value === 1) color = 'red';
+                                        else if (value === 5 || value === 6) color = 'green';
+                                        return `<span style="color: ${color};">${value}</span>`;
+                                      }).join(', ')}
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <th>Total Hits</th>
+                                    <td>${hits}</td>
+                                </tr>
+                                ${glitch === true ? `
+                                <tr>
+                                    There was a glitch!
+                                </tr>` : ``}
+                            </table>
+                        `;
+                        ChatMessage.create({ content: message });
+                    }
                 }
             },
             cancel: { label: "Cancel" }
