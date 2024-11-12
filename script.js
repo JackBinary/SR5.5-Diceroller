@@ -832,7 +832,8 @@ function openSkillCheckDialog() {
         default: "ok",
         render: (html) => {
             const actorId = singleActor ? ownedActors[0].id : html.find("#actorSelect").val();
-            loadActorData(actorId, html);
+            const actor = game.actors.get(actorId);
+            loadActorData(actor, html);
 
             // Set up event listeners for dynamic updates
             html.find("#actorSelect").on("change", function() {
@@ -852,8 +853,7 @@ function openSkillCheckDialog() {
 }
 
 // Function to load actor data and populate fields based on the selected actor
-function loadActorData(selectedActorId, html) {
-    const actor = game.actors.get(selectedActorId);
+function loadActorData(actor, html) {
     if (!actor || !actor.system.skills || !actor.system.track) {
         return;
     }
@@ -939,7 +939,7 @@ function updateDicePool(html) {
     const skillBase = parseInt(selectedSkill.data("skillbase")) || 0;
     const selectedAttributeKey = html.find("#attributeSelect").val();
     const modifier = parseInt(html.find("#modifier").val()) || 0;
-    const selectedActorId = html.find("#actorSelect").val() || (ownedActors.length === 1 ? ownedActors[0].id : null);
+    const selectedActorId = html.find("#actorSelect").val();
     const actor = game.actors.get(selectedActorId);
 
     // Retrieve the selected attribute's base and temp values for the roll
