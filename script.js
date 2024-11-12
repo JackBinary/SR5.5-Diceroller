@@ -110,10 +110,18 @@ function handleDefenseTest(hits, dv, actorId) {
                     
                     // Display defense test results
                     const defenseTable = `
+                        <h3>${actor.name} defends using Reaction + Intuition (Mod: ${modifier})</h3>
                         <table>
                             <tr>
-                                <th>Defense Test Hits</th>
-                                <td>${defenseHits}</td>
+                                <th>Result</th>
+                                <td>
+                                  ${defenseResult.result.map(value => {
+                                    let color = '';
+                                    if (value === 1) color = 'red';
+                                    else if (value === 5 || value === 6) color = 'green';
+                                    return `<span style="color: ${color};">${value}</span>`;
+                                  }).join(', ')}
+                                </td>
                             </tr>
                             <tr>
                                 <th>Net Hits</th>
@@ -127,6 +135,10 @@ function handleDefenseTest(hits, dv, actorId) {
                             <tr>
                                 <td colspan="2"><strong>Dodged!</strong></td>
                             </tr>`}
+                            ${defenseResult.glitch === true ? `
+                            <tr>
+                                There was a glitch!
+                            </tr>` : ``}
                         </table>
                     `;
                     
@@ -182,8 +194,27 @@ function handleSoakTest(damage, actor) {
 
                     // Display soak test results
                     const soakTable = `
+                        <h3>${actor.name} soaks using Body (Mod: ${modifier})</h3>
                         <table>
-                            <tr><th>Soaked Damage</th><td>${soakedDamage}</td></tr>
+                            <tr>
+                                <th>Result</th>
+                                <td>
+                                  ${soakResult.result.map(value => {
+                                    let color = '';
+                                    if (value === 1) color = 'red';
+                                    else if (value === 5 || value === 6) color = 'green';
+                                    return `<span style="color: ${color};">${value}</span>`;
+                                  }).join(', ')}
+                                </td>
+                            </tr>
+                            <tr>
+                                <th>Soaked Damage</th>
+                                <td>${soakedDamage}</td>
+                            </tr>
+                            ${soakResult.glitch === true ? `
+                            <tr>
+                                There was a glitch!
+                            </tr>` : ``}
                         </table>
                     `;
                     ChatMessage.create({ content: soakTable });
@@ -408,20 +439,44 @@ async function setupCombatDialog() {
                                         
                                         const rollResult = rollDice(dicePool, explodeSixes, useWildDie);
                                         const hits = rollResult.hits;
-                                        const rollOutput = rollResult.result.join(", ");
                                         
                                         // Output result in chat
                                         ChatMessage.create({
                                             user: game.user.id,
                                             speaker: { alias: actor.name },
                                             content: `
+                                                <h3>${actor.name} attacks ${targetActor.name} using ${selectedSkillLabel} + ${selectedAttributeLabel} (Mod: ${modifier})</h3>
                                                 <table>
-                                                    <tr><th>${actor.name} attacks ${targetActor.name} using ${selectedSkillLabel} + ${selectedAttributeLabel}</th></tr>
-                                                    <tr><td>Roll: ${rollOutput}</td></tr>
-                                                    <tr><td>Hits: ${hits}</td></tr>
-                                                    <tr><td>Damage Value: ${baseDamage}</td></tr>
+                                                    <tr>
+                                                        <th>Result</th>
+                                                        <td>
+                                                          ${rollResult.result.map(value => {
+                                                            let color = '';
+                                                            if (value === 1) color = 'red';
+                                                            else if (value === 5 || value === 6) color = 'green';
+                                                            return `<span style="color: ${color};">${value}</span>`;
+                                                          }).join(', ')}
+                                                        </td>
+                                                    </tr>
+                                                    <tr><td> ${hits}</td></tr>
+                                                    <tr>
+                                                        <th>DV</th>
+                                                        <td>${baseDamage}</td>
+                                                    </tr>
+                                                    ${rollResult.glitch === true ? `
+                                                    <tr>
+                                                        There was a glitch!
+                                                    </tr>` : ``}
                                                 </table>
-                                            `
+                                            `,
+                                            flags: {
+                                                "shadowrun-defense-test": {
+                                                    defenseButton: true,
+                                                    hits: hits,
+                                                    dv: baseDamage,
+                                                    actorId: actor.id
+                                                }
+                                            }
                                         });
                                     }
                                 },
