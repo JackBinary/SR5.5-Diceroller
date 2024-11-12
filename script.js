@@ -743,16 +743,21 @@ function openSkillCheckDialog() {
         },
         default: "ok",
         render: (html) => {
-            loadActorData(singleActor ? ownedActors[0].id : html.find("#actorSelect").val(), html);
-            // Dynamic updates
-            html.find("#customRoll").on("change", function () {
-                if (this.checked) {
-                    html.find("#skillSelectContainer, #attributeSelectContainer, #modifierContainer, #skillInfoContainer").hide();
-                    html.find("#customDiceContainer").show();
-                } else {
-                    html.find("#skillSelectContainer, #attributeSelectContainer, #modifierContainer, #skillInfoContainer").show();
-                    html.find("#customDiceContainer").hide();
-                }
+            const actorId = singleActor ? ownedActors[0].id : html.find("#actorSelect").val();
+            loadActorData(actorId, html);
+
+            // Set up event listeners for dynamic updates
+            html.find("#actorSelect").on("change", function() {
+                loadActorData(this.value, html);
+            });
+            html.find("#skillSelect").on("change", function() {
+                updateDicePool(html);
+            });
+            html.find("#attributeSelect").on("change", function() {
+                updateDicePool(html);
+            });
+            html.find("#modifier").on("input", function() {
+                updateDicePool(html);
             });
         }
     }).render(true);
@@ -846,12 +851,16 @@ function updateDicePool(html) {
     const skillBase = parseInt(selectedSkill.data("skillbase")) || 0;
     const selectedAttributeKey = html.find("#attributeSelect").val();
     const modifier = parseInt(html.find("#modifier").val()) || 0;
-    const selectedActorId = html.find("#actorSelect").val() || (singleActor ? ownedActors[0].id : null);
+    const selectedActorId = html.find("#actorSelect").val() || (ownedActors.length === 1 ? ownedActors[0].id : null);
     const actor = game.actors.get(selectedActorId);
 
+    // Retrieve the selected attribute's base and temp values for the roll
     const { displayName: attributeDisplayName, baseValue: attributeBase, tempValue: attributeTemp } = actor ? getAttributeData(selectedAttributeKey, actor) : { displayName: "", baseValue: 0, tempValue: 0 };
+
+    // Calculate initial dice pool using only the skill base and selected attribute values
     let dicePool = skillBase + attributeBase + attributeTemp + modifier;
 
+    // Adjust for pain tolerance options
     const painTolerance = html.find("#painTolerance").val();
     if (painTolerance === "low") {
         dicePool -= Math.floor((actor.system.track.stun.value + actor.system.track.physical.value) / 3);
