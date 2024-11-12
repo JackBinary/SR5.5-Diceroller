@@ -753,36 +753,42 @@ function openSkillCheckDialog() {
                                         <td colspan="2" style="color: red;">There was a glitch!</td>
                                     </tr>` : ''}
                                 </table>
+                                ${currentDicePool > 1 ? `
                                 <button class="continue-roll">Continue</button>
-                                <button class="stop-roll">Stop</button>`;
+                                <button class="stop-roll">Stop</button>` : ``}`;
                     
                             // Create chat message and add buttons for interaction
                             ChatMessage.create({ content: message }).then(chatMessage => {
-                                Hooks.once('renderChatMessage', (chatMessageHtml, html) => {
-                                    if (chatMessage.id === chatMessageHtml.id) {
-                                        // Handle "Continue" button
-                                        html.find(".continue-roll").on("click", function () {
-                                            currentDicePool -= 1; // Reduce dice pool if needed
-                                            chatMessage.delete(); // Remove previous message
-                                            extendedRoll(); // Trigger another roll
-                                        });
-                    
-                                        // Handle "Stop" button
-                                        html.find(".stop-roll").on("click", function () {
-                                            // Construct final message with cumulative roll history
-                                            const finalMessage = `
-                                                <h3>Final Results for ${actorName} - ${skillName} + ${attributeName}</h3>
-                                                <table>
-                                                    ${rollHistoryRows}
-                                                    <tr>
-                                                        <th>Total Hits</th>
-                                                        <td>${totalHits}</td>
-                                                    </tr>
-                                                </table>`;
-                                            ChatMessage.create({ content: finalMessage });
-                                        });
-                                    }
-                                });
+                                // Only add hooks if there's more than 1 die left in the pool, and buttons were added to the message
+                                if (currentDicePool > 1) {
+                                    Hooks.once('renderChatMessage', (chatMessageHtml, html) => {
+                                        if (chatMessage.id === chatMessageHtml.id) {
+                                            // Handle "Continue" button
+                                            html.find(".continue-roll").on("click", function () {
+                                                currentDicePool -= 1; // Reduce dice pool if needed
+                                                chatMessage.delete(); // Remove previous message
+                                                extendedRoll(); // Trigger another roll
+                                            });
+                            
+                                            // Handle "Stop" button
+                                            html.find(".stop-roll").on("click", function () {
+                                                chatMessage.delete(); // Remove previous message
+                            
+                                                // Construct final message with cumulative roll history
+                                                const finalMessage = `
+                                                    <h3>Final Results for ${actorName} - ${skillName} + ${attributeName}</h3>
+                                                    <table>
+                                                        ${rollHistoryRows}
+                                                        <tr>
+                                                            <th>Total Hits</th>
+                                                            <td>${totalHits}</td>
+                                                        </tr>
+                                                    </table>`;
+                                                ChatMessage.create({ content: finalMessage });
+                                            });
+                                        }
+                                    });
+                                }
                             });
                         }
                     
