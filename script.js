@@ -837,16 +837,16 @@ function openSkillCheckDialog() {
 
             // Set up event listeners for dynamic updates
             html.find("#actorSelect").on("change", function() {
-                loadActorData(this.value, html);
+                loadActorData(actor, html);
             });
             html.find("#skillSelect").on("change", function() {
-                updateDicePool(html);
+                updateDicePool(html, actor);
             });
             html.find("#attributeSelect").on("change", function() {
-                updateDicePool(html);
+                updateDicePool(html, actor);
             });
             html.find("#modifier").on("input", function() {
-                updateDicePool(html);
+                updateDicePool(html, actor);
             });
         }
     }).render(true);
@@ -893,7 +893,7 @@ function loadActorData(actor, html) {
     html.find("#attributeSelect").html(attributeOptions);
     html.find("#painToleranceContainer").html(painToleranceSelect);
 
-    updateDicePool(html); // Update dice pool display
+    updateDicePool(html, actor); // Update dice pool display
 }
 
 // Helper function to get attribute display name and values (base and temp)
@@ -933,14 +933,12 @@ function getAttributeList(actor) {
 }
 
 // Function to calculate and update the dice pool
-function updateDicePool(html) {
+function updateDicePool(html, actor) {
     const selectedSkill = html.find("#skillSelect option:selected");
     const skillName = selectedSkill.text();
     const skillBase = parseInt(selectedSkill.data("skillbase")) || 0;
     const selectedAttributeKey = html.find("#attributeSelect").val();
     const modifier = parseInt(html.find("#modifier").val()) || 0;
-    const selectedActorId = html.find("#actorSelect").val();
-    const actor = game.actors.get(selectedActorId);
 
     // Retrieve the selected attribute's base and temp values for the roll
     const { displayName: attributeDisplayName, baseValue: attributeBase, tempValue: attributeTemp } = actor ? getAttributeData(selectedAttributeKey, actor) : { displayName: "", baseValue: 0, tempValue: 0 };
