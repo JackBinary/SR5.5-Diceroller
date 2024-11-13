@@ -243,7 +243,7 @@ function handleSoakTest(damage, actor) {
     }).render(true);
 }
 
-// Add button to chat message for defense test, ensuring only one button is added
+// Add button to chat message for defense test
 Hooks.on("renderChatMessage", (message, html) => {
     const flags = message.flags["shadowrun-defense-test"];
     if (flags?.defenseButton) {
@@ -260,7 +260,7 @@ Hooks.on("renderChatMessage", (message, html) => {
     }
 });
 
-// Combat Setup Function (formerly macro)
+// Combat Setup Function
 async function setupCombatDialog() {
     const ownedActors = game.actors.filter(actor => actor.isOwner && actor.type === "character");
 
@@ -393,7 +393,7 @@ async function setupCombatDialog() {
                             });
                         }
                         
-                        // Open a new dialog with additional options
+                        // Open a new dialog for the actual attack
                         const skills = Object.entries(actor.system.skills.active).filter(([_, skill]) => !skill.hidden).map(([key, skill]) => ({ key, label: skill.name }));
                         const attributes = Object.keys(actor.system.attributes).filter(attr => ["body", "agility", "reaction", "strength", "willpower", "logic", "intuition", "charisma"].includes(attr));
                         
@@ -636,11 +636,6 @@ async function setupCombatDialog() {
         default: "ok"
     }).render(true);
 }
-
-// Expose the setupCombatDialog function for use within Foundry's macro interface
-Hooks.once('ready', () => {
-    game.shadowrunDiceRoller = { setupCombatDialog };
-});
 
 // Function to initialize and render the dropdown selection and roll interface
 function openSkillCheckDialog() {
@@ -999,6 +994,7 @@ function openSkillCheckDialog() {
     dialog.render(true);
 }
 
+// Expose the key functions for macro usage
 game.customMacros = {
     setupCombatDialog,
     openSkillCheckDialog
