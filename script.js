@@ -1,4 +1,4 @@
-unction rollDice(pool, explode = false, wild = false) {
+function rollDice(pool, explode = false, wild = false) {
     console.log(`RollDice: ${pool}`)
     let result = [];
     let hits = 0;
@@ -998,3 +998,8 @@ function openSkillCheckDialog() {
     
     dialog.render(true);
 }
+
+game.customMacros = {
+    setupCombatDialog,
+    openSkillCheckDialog
+};
