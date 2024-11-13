@@ -644,342 +644,357 @@ Hooks.once('ready', () => {
 
 // Function to initialize and render the dropdown selection and roll interface
 function openSkillCheckDialog() {
-    const ownedActors = game.actors.filter(actor => actor.type === "character" && actor.isOwner);
-
-    if (ownedActors.length === 0) {
-        ui.notifications.warn("You don't own any characters to select.");
-        return;
+    // Get list of owned actors
+    const actors = game.actors.filter(actor => actor.isOwner);
+    
+    // If only one actor is found, skip the actor dropdown and pre-select it
+    const singleActor = actors.length === 1 ? actors[0] : null;
+    
+    // Dictionaries to store skill and attribute values
+    let skillDictionary = {};
+    let attributeDictionary = {};
+    
+    // Helper function to title case attributes
+    function titleCase(str) {
+        return str.charAt(0).toUpperCase() + str.slice(1);
     }
-
-    const singleActor = ownedActors.length === 1;
-    const selectedActor = singleActor ? ownedActors[0] : null;
-
-    const actorOptions = singleActor
-        ? ""
-        : ownedActors.map(actor => `<option value="${actor.id}">${actor.name}</option>`).join('');
-
-    const content = `
-    <form>
-    ${!singleActor ? `
-        <div class="form-group" id="actorSelectContainer">
-        <label for="actorSelect">Select Actor:</label>
-        <select id="actorSelect">${actorOptions}</select>
-        </div>
-        ` : ""}
-        <div class="form-group" id="skillSelectContainer">
-        <label for="skillSelect">Select Skill or Attribute:</label>
-        <select id="skillSelect"></select>
-        </div>
-        <div class="form-group" id="attributeSelectContainer">
-        <label for="attributeSelect">Select Attribute:</label>
-        <select id="attributeSelect"></select>
-        </div>
-        <div class="form-group" id="modifierContainer">
-        <label for="modifier">Modifier:</label>
-        <input type="number" id="modifier" value="0" />
-        </div>
-        <div class="form-group">
-        <label for="wildDie">Wild Die:</label>
-        <input type="checkbox" id="wildDie" />
-        </div>
-        <div class="form-group">
-        <label for="explodeSixes">Explode 6s:</label>
-        <input type="checkbox" id="explodeSixes" />
-        </div>
-        <div class="form-group">
-        <label for="extendedTest">Extended Test:</label>
-        <input type="checkbox" id="extendedTest" />
-        </div>
-        <div class="form-group">
-        <label for="customRoll">Custom Roll:</label>
-        <input type="checkbox" id="customRoll" />
-        </div>
-        <div class="form-group" id="customDiceContainer" style="display: none;">
-        <label for="customDice">Number of Dice to Roll:</label>
-        <input type="number" id="customDice" value="0" />
-        </div>
-        <div class="form-group" id="skillInfoContainer">
-        <label for="skillInfo">Skill + Attribute Info:</label>
-        <input type="text" id="skillInfo" readonly />
-        </div>
+    
+    // Generate initial content for the dialog
+    let content = `<form>`;
+    
+    // Custom Roll Checkbox
+    content += `
+    <div class="form-group">
+    <label>Custom Roll:</label>
+    <input type="checkbox" id="custom-roll-checkbox" />
+    </div>`;
+    
+    // Actor dropdown if there are multiple actors
+    if (!singleActor) {
+        content += `
+        <div class="form-group custom-roll-hidden">
+        <label>Actor:</label>
+        <select id="actor-select">
+        ${actors.map(actor => `<option value="${actor.id}">${actor.name}</option>`).join('')}
+        </select>
+        </div>`;
+    }
+    
+    // Combined Skills and Attributes dropdown (first dropdown)
+    content += `
+    <div class="form-group custom-roll-hidden">
+    <label>Skill or Attribute:</label>
+    <select id="primary-select">
+    <option value="">Select a skill or attribute</option>
+    </select>
+    </div>`;
+    
+    // Attributes-only dropdown (second dropdown)
+    content += `
+    <div class="form-group custom-roll-hidden">
+    <label>Attribute:</label>
+    <select id="secondary-attribute-select">
+    <option value="">Select an attribute</option>
+    </select>
+    </div>`;
+    
+    // Modifier Text Box
+    content += `
+    <div class="form-group custom-roll-hidden">
+    <label>Modifier:</label>
+    <input type="number" id="modifier" value="0" />
+    </div>`;
+    
+    // Manual Dice Pool Input (only shown when custom roll is enabled)
+    content += `
+    <div class="form-group custom-roll-only" style="display:none;">
+    <label>Dice Pool:</label>
+    <input type="number" id="custom-dice-pool" value="0" />
+    </div>`;
+    
+    // Checkboxes for "explode", "wild", and "extended"
+    content += `
+    <div class="form-group">
+    <label>Explode:</label>
+    <input type="checkbox" id="explode-checkbox" />
+    </div>
+    <div class="form-group">
+    <label>Wild:</label>
+    <input type="checkbox" id="wild-checkbox" />
+    </div>
+    <div class="form-group">
+    <label>Extended:</label>
+    <input type="checkbox" id="extended-checkbox" />
+    </div>`;
+    
+    // Text box to display the sum of skill, attribute, and modifier values
+    content += `
+    <div class="form-group custom-roll-hidden">
+    <label>Total Dice Pool:</label>
+    <input type="text" id="total-value" value="0" readonly />
+    </div>
     </form>`;
-
-    new Dialog({
-        title: "Select Actor and Skill",
+    
+    // Create the dialog box
+    const dialog = new Dialog({
+        title: "Skill Check",
         content: content,
         buttons: {
-            ok: {
+            roll: {
                 label: "Roll",
                 callback: (html) => {
-                    const customRoll = html.find("#customRoll").is(":checked");
-                    let dicePool = customRoll ? parseInt(html.find("#customDice").val()) || 0 : parseInt(html.find("#skillInfo").val().match(/\((\d+)d6\)/)[1], 10);
-                    const selectedActorId = html.find("#actorSelect").val() || (singleActor ? ownedActors[0].id : null);
-                    const actorName = game.actors.get(selectedActorId).name;
-                    const skillName = customRoll ? "Custom" : html.find("#skillSelect option:selected").text();
-                    const attributeName = customRoll ? "" : html.find("#attributeSelect option:selected").text();
-                    const modifier = parseInt(html.find("#modifier").val()) || 0;
-                    const useWildDie = html.find("#wildDie").is(":checked");
-                    const explodeSixes = html.find("#explodeSixes").is(":checked");
-                    const extendedTest = html.find("#extendedTest").is(":checked");
-
+                    const customRoll = html.find('#custom-roll-checkbox').is(':checked');
+                    let dicePool;
+                    let rollDetails;
+                    
+                    if (customRoll) {
+                        // Use the custom dice pool value for custom rolls
+                        dicePool = parseInt(html.find('#custom-dice-pool').val()) || 0;
+                        rollDetails = "Custom Roll";
+                    } else {
+                        // Calculate the dice pool using total and modifier for actor rolls
+                        const actorId = singleActor ? singleActor.id : html.find('#actor-select').val();
+                        const actor = game.actors.get(actorId);
+                        const actorName = actor.name;
+                        const skillName = html.find('#primary-select option:selected').text();
+                        const attributeName = html.find('#secondary-attribute-select option:selected').text();
+                        const modifier = parseInt(html.find('#modifier').val()) || 0;
+                        
+                        // Calculate wound penalty
+                        const stunWounds = actor.system.track.stun.wounds || 0;
+                        const physicalWounds = actor.system.track.physical.wounds || 0;
+                        const woundPenalty = stunWounds + physicalWounds;
+                        
+                        // Calculate final dice pool including wound penalty and modifier
+                        dicePool = (parseInt(html.find('#total-value').val()) + modifier - woundPenalty) || 0;
+                        rollDetails = `${actorName} rolls ${skillName} + ${attributeName} (Mod: ${modifier})`;
+                    }
+                    
+                    // Roll the dice
+                    const explode = html.find('#explode-checkbox').is(':checked');
+                    const wild = html.find('#wild-checkbox').is(':checked');
+                    const extendedTest = html.find('#extended-checkbox').is(':checked');
+                    
                     if (extendedTest === true) {
                         let totalHits = 0;
                         let rollCount = 0;
                         let currentDicePool = dicePool;
                         let allRollsLog = [];
-                    
+                        
                         // Function to handle each roll in the extended test
                         function extendedRoll() {
                             rollCount++;
-                            let { result, hits, glitch } = rollDice(currentDicePool, explodeSixes, useWildDie);
-                    
+                            let { result, hits, glitch } = rollDice(currentDicePool, explode, wild);
+                            
                             totalHits += hits;
-                    
+                            
                             // Log current roll for cumulative display
                             allRollsLog.push({
                                 rollNumber: rollCount,
                                 result: result,
                             });
-                    
+                            
                             // Build HTML for the table of rolls
                             let rollHistoryRows = allRollsLog.map((log, index) => `
-                                <tr>
-                                    <th>Roll ${index + 1}:</th>
-                                    <td>${log.result.map(value => {
-                                        let color = value === 1 ? 'red' : (value === 5 || value === 6) ? 'green' : '';
-                                        return `<span style="color: ${color};">${value}</span>`;
-                                    }).join(', ')}</td>
-                                </tr>
+                            <tr>
+                            <th>Roll ${index + 1}:</th>
+                            <td>${log.result.join(', ')}</td>
+                            </tr>
                             `).join('');
-                    
+                            
                             // Construct message with cumulative roll history and interaction buttons
                             let message = `
-                                <h3>Extended Test Roll #${rollCount} for ${actorName} - ${skillName} + ${attributeName}</h3>
-                                <table>
-                                    ${rollHistoryRows}
-                                    <tr>
-                                        <th>Total Hits</th>
-                                        <td>${totalHits}</td>
-                                    </tr>
-                                    ${glitch ? `
-                                    <tr>
-                                        <td colspan="2" style="color: red;">There was a glitch!</td>
-                                    </tr>` : ''}
+                            <h3>Extended Test Roll #${rollCount} for ${rollDetails}</h3>
+                            <table>
+                            ${rollHistoryRows}
+                            <tr>
+                            <th>Total Hits</th>
+                            <td>${totalHits}</td>
+                            </tr>
+                            ${glitch ? `
+                                <tr>
+                                <td colspan="2" style="color: red;">There was a glitch!</td>
+                                </tr>` : ''}
                                 </table>
                                 ${currentDicePool > 1 ? `
-                                <button class="continue-roll">Continue</button>
-                                <button class="stop-roll">Stop</button>` : ``}`;
-                    
-                            // Create chat message and add buttons for interaction
-                            ChatMessage.create({ content: message }).then(chatMessage => {
-                                // Only add hooks if there's more than 1 die left in the pool, and buttons were added to the message
-                                if (currentDicePool > 1) {
-                                    Hooks.once('renderChatMessage', (chatMessageHtml, html) => {
-                                        if (chatMessage.id === chatMessageHtml.id) {
-                                            // Handle "Continue" button
-                                            html.find(".continue-roll").on("click", function () {
-                                                currentDicePool -= 1; // Reduce dice pool if needed
-                                                chatMessage.delete(); // Remove previous message
-                                                extendedRoll(); // Trigger another roll
-                                            });
-                            
-                                            // Handle "Stop" button
-                                            html.find(".stop-roll").on("click", function () {
-                                                chatMessage.delete(); // Remove previous message
-                            
-                                                // Construct final message with cumulative roll history
-                                                const finalMessage = `
-                                                    <h3>Final Results for ${actorName} - ${skillName} + ${attributeName}</h3>
-                                                    <table>
+                                    <button class="continue-roll">Continue</button>
+                                    <button class="stop-roll">Stop</button>` : ``}`;
+                                    
+                                    // Create chat message and add buttons for interaction
+                                    ChatMessage.create({ content: message }).then(chatMessage => {
+                                        // Only add hooks if there's more than 1 die left in the pool, and buttons were added to the message
+                                        if (currentDicePool > 1) {
+                                            Hooks.once('renderChatMessage', (chatMessageHtml, html) => {
+                                                if (chatMessage.id === chatMessageHtml.id) {
+                                                    // Handle "Continue" button
+                                                    html.find(".continue-roll").on("click", function () {
+                                                        currentDicePool -= 1; // Reduce dice pool if needed
+                                                        chatMessage.delete(); // Remove previous message
+                                                        extendedRoll(); // Trigger another roll
+                                                    });
+                                                    
+                                                    // Handle "Stop" button
+                                                    html.find(".stop-roll").on("click", function () {
+                                                        chatMessage.delete(); // Remove previous message
+                                                        
+                                                        // Construct final message with cumulative roll history
+                                                        const finalMessage = `
+                                                        <h3>Final Results for ${rollDetails}</h3>
+                                                        <table>
                                                         ${rollHistoryRows}
                                                         <tr>
-                                                            <th>Total Hits</th>
-                                                            <td>${totalHits}</td>
+                                                        <th>Total Hits</th>
+                                                        <td>${totalHits}</td>
                                                         </tr>
-                                                    </table>`;
-                                                ChatMessage.create({ content: finalMessage });
+                                                        </table>`;
+                                                        ChatMessage.create({ content: finalMessage });
+                                                    });
+                                                }
                                             });
                                         }
                                     });
-                                }
-                            });
                         }
-                    
+                        
                         // Start the first roll in the extended test
                         extendedRoll();
                     } else {
-                        // Perform roll using rollDice function
-                        const { result, hits, glitch } = rollDice(dicePool, explodeSixes, useWildDie);
-    
-                        // Display the result message in chat
+                        const { result, hits, glitch } = rollDice(dicePool, explode, wild);
+                        
+                        // Format the message for chat
                         const message = `
-                            <h3>${actorName} rolls ${skillName} + ${attributeName} (Mod: ${modifier})</h3>
-                            <table>
-                                <tr>
-                                    <th>Result</th>
-                                    <td>
-                                      ${result.map(value => {
-                                        let color = '';
-                                        if (value === 1) color = 'red';
-                                        else if (value === 5 || value === 6) color = 'green';
-                                        return `<span style="color: ${color};">${value}</span>`;
-                                      }).join(', ')}
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <th>Total Hits</th>
-                                    <td>${hits}</td>
-                                </tr>
-                                ${glitch === true ? `
-                                <tr>
-                                    There was a glitch!
-                                </tr>` : ``}
+                        <h3>${rollDetails}</h3>
+                        <table>
+                        <tr>
+                        <th>Result</th>
+                        <td>
+                        ${result.join(' ')}
+                        </td>
+                        </tr>
+                        <tr>
+                        <th>Total Hits</th>
+                        <td>${hits}</td>
+                        </tr>
+                        ${glitch ? `
+                            <tr>
+                            <th colspan="2" style="color:red;">There was a glitch!</th>
+                            </tr>` : ``}
                             </table>
-                        `;
-                        ChatMessage.create({ content: message });
+                            `;
+                            ChatMessage.create({ content: message });
                     }
                 }
             },
-            cancel: { label: "Cancel" }
+            cancel: {
+                label: "Cancel"
+            }
         },
-        default: "ok",
-        render: (html) => {
-            const actorId = singleActor ? ownedActors[0].id : html.find("#actorSelect").val();
-            const actor = game.actors.get(actorId);
-            loadActorData(actor, html);
-
-            // Set up event listeners for dynamic updates
-            html.find("#actorSelect").on("change", function() {
-                const actorId = singleActor ? ownedActors[0].id : html.find("#actorSelect").val();
-                const actor = game.actors.get(actorId);
-                loadActorData(actor, html);
-            });
-            html.find("#skillSelect").on("change", function() {
-                updateDicePool(html, actor);
-            });
-            html.find("#attributeSelect").on("change", function() {
-                updateDicePool(html, actor);
-            });
-            html.find("#modifier").on("input", function() {
-                updateDicePool(html, actor);
-            });
-        }
-    }).render(true);
-}
-
-// Function to load actor data and populate fields based on the selected actor
-function loadActorData(actor, html) {
-    if (!actor || !actor.system.skills || !actor.system.track) {
-        return;
-    }
-
-    // Calculate pain modifiers based on wound and stun values
-    const stunValue = actor.system.track.stun.value || 0;
-    const physicalValue = actor.system.track.physical.value || 0;
-    let painModifier = -Math.floor(stunValue / 3) - Math.floor(physicalValue / 3);
-
-    // Populate the Pain Tolerance dropdown if there’s a pain modifier
-    const painToleranceSelect = painModifier < 0
-        ? `
-        <label for="painTolerance">Pain Tolerance:</label>
-        <select id="painTolerance">
-            <option value="none">None</option>
-            <option value="low">Low Pain Tolerance (-2 per 3 damage)</option>
-            <option value="high">High Pain Tolerance (reduces final negative by 1)</option>
-            <option value="editor">Pain Editor (ignores all negatives)</option>
-        </select>`
-        : "";
-
-    // Populate skills in the skill dropdown
-    const skillOptions = Object.entries(actor.system.skills.active || {})
-        .filter(([skillKey, skill]) => skill && !skill.hidden && (skill.canDefault || skill.base >= 1))
-        .map(([skillKey, skill]) => `<option value="${skillKey}" data-skillbase="${skill.base}" data-type="skill">${skill.label || skill.name}</option>`)
-        .join('');
-
-    // Generate attribute options based on the character's "special" value and add to the skill dropdown
-    const attributeOptions = getAttributeList(actor)
-        .map(attributeKey => {
-            const { displayName, baseValue } = getAttributeData(attributeKey.toLowerCase().replace(/\s+/g, '_'), actor);
-            return `<option value="${attributeKey.toLowerCase().replace(/\s+/g, '_')}" data-skillbase="${baseValue}" data-type="attribute">${displayName}</option>`;
-        })
-        .join('');
-
-    html.find("#skillSelect").html(skillOptions + attributeOptions);
-    html.find("#attributeSelect").html(attributeOptions);
-    html.find("#painToleranceContainer").html(painToleranceSelect);
-
-    updateDicePool(html, actor); // Update dice pool display
-}
-
-// Helper function to get attribute display name and values (base and temp)
-function getAttributeData(attributeKey, actor) {
-    const attributes = actor.system.attributes || {};
-    const matrix = actor.system.matrix || {};
-    if (attributeKey === "device_rating" && matrix.rating) {
-        return { displayName: "Device Rating", baseValue: matrix.rating, tempValue: 0 };
-    }
-    const attributeData = attributes[attributeKey] || matrix[attributeKey];
-    if (attributeData) {
-        const displayName = attributeKey.charAt(0).toUpperCase() + attributeKey.slice(1).replace(/_/g, ' ');
-        const baseValue = attributeData.base || attributeData.value || 0;
-        const tempValue = attributeData.temp !== null ? attributeData.temp : 0;
-        return { displayName, baseValue, tempValue };
-    }
-    return { displayName: attributeKey, baseValue: 0, tempValue: 0 };
-}
-
-// Helper function to get attribute display name and value
-function getAttributeData(attributeKey, actor) {
-    const attributes = actor.system.attributes || {};
-    const matrix = actor.system.matrix || {};
-
-    console.log("Fetching data for attribute key:", attributeKey);
-
-    // Handle special case for device rating in matrix attributes
-    if (attributeKey === "device_rating" && matrix.rating) {
-        console.log("Using Device Rating from matrix:", matrix.rating);
-        return { displayName: "Device Rating", value: matrix.rating };
-    }
-
-    const attributeData = attributes[attributeKey] || matrix[attributeKey];
-
-    // Check if attribute data exists and log if it doesn’t
-    if (!attributeData) {
-        console.warn(`Attribute data not found for key: ${attributeKey}`);
-        return { displayName: attributeKey, value: 0 };
-    }
-
-    const displayName = attributeKey.charAt(0).toUpperCase() + attributeKey.slice(1).replace(/_/g, ' ');
-    const value = attributeData.value || 0;
-
-    console.log("Attribute found:", displayName, "Value:", value);
-
-    return { displayName, value };
-}
-
-// Function to calculate and update the dice pool
-function updateDicePool(html, actor) {
-    const selectedSkill = html.find("#skillSelect option:selected");
-    const skillName = selectedSkill.text();
-    const skillBase = parseInt(selectedSkill.data("skillbase")) || 0;
-    const selectedAttributeKey = html.find("#attributeSelect").val();
-    const modifier = parseInt(html.find("#modifier").val()) || 0;
-
-    // Retrieve the selected attribute's base and temp values for the roll
-    const { displayName: attributeDisplayName, baseValue: attributeBase, tempValue: attributeTemp } = actor ? getAttributeData(selectedAttributeKey, actor) : { displayName: "", baseValue: 0, tempValue: 0 };
-
-    // Calculate initial dice pool using only the skill base and selected attribute values
-    let dicePool = skillBase + attributeBase + attributeTemp + modifier;
-
-    // Adjust for pain tolerance options
-    const painTolerance = html.find("#painTolerance").val();
-    if (painTolerance === "low") {
-        dicePool -= Math.floor((actor.system.track.stun.value + actor.system.track.physical.value) / 3);
-    } else if (painTolerance === "high") {
-        dicePool += 1;
-    } else if (painTolerance === "editor") {
-        dicePool += Math.floor((actor.system.track.stun.value + actor.system.track.physical.value) / 3);
-    }
-
-    html.find("#skillInfo").val(`${skillName} + ${attributeDisplayName} (${dicePool}d6)`);
+        default: "roll",
+            render: (html) => {
+                // Toggle custom roll visibility
+                function toggleCustomRoll() {
+                    const customRollEnabled = html.find('#custom-roll-checkbox').is(':checked');
+                    html.find('.custom-roll-hidden').toggle(!customRollEnabled);
+                    html.find('.custom-roll-only').toggle(customRollEnabled);
+                }
+                
+                // Function to populate skill and attribute dropdowns based on the selected actor
+                function populateOptions(actorId) {
+                    const actor = game.actors.get(actorId);
+                    
+                    // Reset dictionaries
+                    skillDictionary = {};
+                    attributeDictionary = {};
+                    
+                    // Populate skills in the dictionary
+                    const skills = Object.values(actor.system.skills.active).filter(skill => !skill.hidden);
+                    const skillOptions = skills.map(skill => {
+                        skillDictionary[skill.name] = skill.base || 0; // Store skill base value
+                        return `<option value="${skill.name}">Skill: ${skill.name}</option>`;
+                    }).join('');
+                    
+                    // Base attributes
+                    let attributes = ["body", "agility", "reaction", "strength", "willpower", "logic", "intuition", "charisma"];
+                    
+                    // Check for special attribute additions based on actor's system.special value
+                    const specialValue = actor.system.special;
+                    if (specialValue === "resonance") {
+                        attributes.push("resonance", "submersion");
+                    } else if (specialValue === "magic") {
+                        attributes.push("magic", "initiation");
+                    }
+                    
+                    // Populate Matrix attributes if matrix rating is greater than 0
+                    const matrixRating = actor.system.matrix?.rating || 0;
+                    let matrixOptions = "";
+                    if (matrixRating > 0) {
+                        const matrixAttributes = [
+                            { key: "matrixRating", label: "Matrix: Rating", value: matrixRating },
+                            { key: "matrixAttack", label: "Matrix: Attack", value: actor.system.matrix.attack?.value || 0 },
+                            { key: "matrixSleaze", label: "Matrix: Sleaze", value: actor.system.matrix.sleaze?.value || 0 },
+                            { key: "matrixDataProcessing", label: "Matrix: Data Processing", value: actor.system.matrix.data_processing?.value || 0 },
+                            { key: "matrixFirewall", label: "Matrix: Firewall", value: actor.system.matrix.firewall?.value || 0 }
+                        ];
+                        
+                        // Add each matrix attribute to the dictionary and the options HTML
+                        matrixOptions = matrixAttributes.map(attr => {
+                            attributeDictionary[attr.key] = attr.value;
+                            return `<option value="${attr.key}">${attr.label}</option>`;
+                        }).join('');
+                    }
+                    
+                    // Populate attributes in the dictionary with title casing
+                    const attributeOptions = attributes.map(attr => {
+                        const titleCasedAttr = titleCase(attr);
+                        attributeDictionary[attr] = actor.system.attributes[attr]?.value || 0; // Store attribute value
+                        return `<option value="${attr}">Attribute: ${titleCasedAttr}</option>`;
+                    }).join('');
+                    
+                    // Populate the primary select with skills, attributes, and any matrix options
+                    html.find('#primary-select').html(`<option value="">Select a skill or attribute</option>` + skillOptions + attributeOptions + matrixOptions);
+                    
+                    // Populate the secondary attribute select with attributes and matrix options only
+                    html.find('#secondary-attribute-select').html(`<option value="">Select an attribute</option>` + attributeOptions + matrixOptions);
+                }
+                
+                // Function to calculate and update the total value
+                function updateTotalValue() {
+                    const primarySelection = html.find('#primary-select').val();
+                    const secondaryAttribute = html.find('#secondary-attribute-select').val();
+                    const modifier = parseInt(html.find('#modifier').val()) || 0;
+                    
+                    // Retrieve the selected skill/attribute and secondary attribute values
+                    const primaryValue = skillDictionary[primarySelection] || attributeDictionary[primarySelection] || 0;
+                    const secondaryValue = attributeDictionary[secondaryAttribute] || 0;
+                    
+                    // Calculate total and update the text box
+                    const total = primaryValue + secondaryValue + modifier;
+                    html.find('#total-value').val(total);
+                }
+                
+                // Toggle visibility based on custom roll checkbox
+                html.find('#custom-roll-checkbox').on('change', toggleCustomRoll);
+                toggleCustomRoll();  // Initial check on dialog render
+                
+                // Populate options if only one actor, and set up total value
+                if (singleActor) {
+                    populateOptions(singleActor.id);
+                    updateTotalValue();
+                } else {
+                    // Update options and total value when actor changes
+                    html.find('#actor-select').on('change', function() {
+                        populateOptions(this.value);
+                        updateTotalValue();
+                    });
+                    
+                    // Populate options and set initial total value for the initial selected actor
+                    populateOptions(html.find('#actor-select').val());
+                    updateTotalValue();
+                }
+                
+                // Update total value when primary or secondary selections or modifier change
+                html.find('#primary-select, #secondary-attribute-select, #modifier').on('change', updateTotalValue);
+            }
+    });
+    
+    dialog.render(true);
 }
