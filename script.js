@@ -146,7 +146,7 @@ function handleDefenseTest(hits, dv, actorId) {
                                 </td>
                             </tr>
                             <tr>
-                                <th>Net Hits</th>
+                                <th>ATK Net Hits</th>
                                 <td>${netHits}</td>
                             </tr>
                             ${netHits > 0 ? `
